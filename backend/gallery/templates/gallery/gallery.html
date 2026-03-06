@@ -1,0 +1,365 @@
+{% extends "gallery/base.html" %}
+
+{% block title %}Gallery — AI SmartGallery{% endblock %}
+
+{% block extra_head %}
+<style>
+    /* ── Stats ── */
+    .stat-card.purple { border: 1px solid rgba(108,99,255,0.25); background: rgba(108,99,255,0.08); }
+    .stat-card.cyan   { border: 1px solid rgba(0,212,255,0.2);   background: rgba(0,212,255,0.06); }
+    .stat-card.green  { border: 1px solid rgba(0,229,160,0.2);   background: rgba(0,229,160,0.06); }
+    .stat-card.gold   { border: 1px solid rgba(251,191,36,0.2);  background: rgba(251,191,36,0.06); }
+
+    .stat-value.purple { color: #a89aff; }
+    .stat-value.cyan   { color: #67e8f9; }
+    .stat-value.green  { color: #6ee7b7; }
+    .stat-value.gold   { color: #fcd34d; }
+
+    /* ── Toolbar ── */
+    .toolbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 1rem;
+        margin-bottom: 1.5rem;
+    }
+
+    .filter-tabs {
+        display: flex;
+        gap: 0.4rem;
+        background: var(--glass);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 4px;
+    }
+
+    .filter-tab {
+        padding: 0.35rem 1rem;
+        border-radius: 7px;
+        font-size: 0.82rem;
+        font-weight: 500;
+        color: var(--text-muted);
+        cursor: pointer;
+        border: none;
+        background: transparent;
+        transition: all 0.2s;
+    }
+
+    .filter-tab.active, .filter-tab:hover {
+        background: var(--glass-hover);
+        color: var(--text-bright);
+    }
+
+    .filter-tab.active {
+        background: linear-gradient(135deg, rgba(108,99,255,0.3), rgba(139,92,246,0.2));
+        color: #c4b5fd;
+    }
+
+    /* ── Photo grid ── */
+    .photo-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+        gap: 1.25rem;
+    }
+
+    .photo-card {
+        border-radius: 16px;
+        overflow: hidden;
+        position: relative;
+        cursor: pointer;
+        animation: fadeUp 0.4s ease both;
+    }
+
+    .photo-card:nth-child(1) { animation-delay: 0.05s; }
+    .photo-card:nth-child(2) { animation-delay: 0.10s; }
+    .photo-card:nth-child(3) { animation-delay: 0.15s; }
+    .photo-card:nth-child(4) { animation-delay: 0.20s; }
+    .photo-card:nth-child(5) { animation-delay: 0.25s; }
+    .photo-card:nth-child(6) { animation-delay: 0.30s; }
+
+    @keyframes fadeUp {
+        from { opacity: 0; transform: translateY(16px); }
+        to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .photo-card:hover .photo-overlay { opacity: 1; }
+    .photo-card:hover .photo-img     { transform: scale(1.04); }
+
+    .photo-img-wrapper {
+        position: relative;
+        overflow: hidden;
+        aspect-ratio: 4/3;
+        background: rgba(255,255,255,0.03);
+    }
+
+    .photo-img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        display: block;
+        transition: transform 0.4s ease;
+    }
+
+    /* Face bounding boxes */
+    .face-box {
+        position: absolute;
+        border: 2px solid rgba(108,99,255,0.9);
+        border-radius: 4px;
+        box-shadow: 0 0 0 1px rgba(108,99,255,0.3), inset 0 0 12px rgba(108,99,255,0.1);
+        transition: border-color 0.2s;
+        pointer-events: none;
+    }
+
+    .face-box::before {
+        content: '';
+        position: absolute;
+        inset: -4px;
+        border: 1px solid rgba(108,99,255,0.2);
+        border-radius: 6px;
+    }
+
+    /* Corner accents on face box */
+    .face-box::after {
+        content: '';
+        position: absolute;
+        top: -2px; left: -2px;
+        width: 10px; height: 10px;
+        border-top: 2px solid var(--accent-2);
+        border-left: 2px solid var(--accent-2);
+        border-radius: 2px 0 0 0;
+    }
+
+    .photo-overlay {
+        position: absolute;
+        inset: 0;
+        background: linear-gradient(to top, rgba(5,8,16,0.85) 0%, transparent 60%);
+        opacity: 0;
+        transition: opacity 0.3s;
+        display: flex;
+        flex-direction: column;
+        justify-content: flex-end;
+        padding: 1rem;
+    }
+
+    .photo-meta {
+        padding: 0.9rem 1rem;
+        border-top: 1px solid var(--border);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+    }
+
+    .photo-date {
+        font-size: 0.75rem;
+        color: var(--text-muted);
+    }
+
+    .face-count-badge {
+        display: flex;
+        align-items: center;
+        gap: 0.3rem;
+        font-size: 0.72rem;
+        color: #a89aff;
+        font-weight: 600;
+    }
+
+    /* ── Person chips on hover ── */
+    .person-chips {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.3rem;
+        margin-bottom: 0.4rem;
+    }
+
+    .person-chip {
+        padding: 0.2rem 0.55rem;
+        border-radius: 999px;
+        font-size: 0.7rem;
+        font-weight: 600;
+        background: rgba(108,99,255,0.3);
+        border: 1px solid rgba(108,99,255,0.5);
+        color: #c4b5fd;
+    }
+
+    /* ── Empty state ── */
+    .empty-state {
+        text-align: center;
+        padding: 5rem 2rem;
+    }
+
+    .empty-icon {
+        font-size: 4rem;
+        margin-bottom: 1rem;
+        opacity: 0.4;
+    }
+
+    .empty-state h3 {
+        font-family: 'Syne', sans-serif;
+        font-size: 1.4rem;
+        margin-bottom: 0.5rem;
+        color: var(--text-muted);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<!-- Page header -->
+<div style="margin-bottom: 2rem;">
+    <div style="display:flex; align-items:center; gap:0.75rem; margin-bottom:0.5rem;">
+        <h1 class="page-heading">Your <span>Gallery</span></h1>
+        <span class="badge badge-purple">AI Powered</span>
+    </div>
+    <p class="page-subheading">Every face detected, clustered and identified automatically.</p>
+</div>
+
+<!-- Stats row -->
+<div class="stats-row">
+    <div class="glass-card stat-card purple">
+        <div class="stat-label">📸 Total Photos</div>
+        <div class="stat-value purple">{{ photo_faces|length }}</div>
+    </div>
+    <div class="glass-card stat-card cyan">
+        <div class="stat-label">👤 Faces Found</div>
+        <div class="stat-value cyan" id="total-faces">—</div>
+    </div>
+    <div class="glass-card stat-card green">
+        <div class="stat-label">🧑‍🤝‍🧑 People</div>
+        <div class="stat-value green">{{ person_count }}</div>
+    </div>
+    <div class="glass-card stat-card gold">
+        <div class="stat-label">📅 Events</div>
+        <div class="stat-value gold">{{ event_count }}</div>
+    </div>
+</div>
+
+<!-- Toolbar -->
+<div class="toolbar">
+    <div class="filter-tabs">
+        <button class="filter-tab active" onclick="filterGrid('all', this)">All Photos</button>
+        <button class="filter-tab" onclick="filterGrid('faces', this)">Has Faces</button>
+        <button class="filter-tab" onclick="filterGrid('no-faces', this)">No Faces</button>
+    </div>
+    <div style="display:flex; gap:0.5rem;">
+        <a href="{% url 'visual_search' %}" class="btn btn-ghost">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+            Visual Search
+        </a>
+        <a href="{% url 'rescan' %}" class="btn btn-ghost">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+            Rescan
+        </a>
+        <a href="{% url 'upload_photo' %}" class="btn btn-accent">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            Upload Photo
+        </a>
+    </div>
+</div>
+
+<!-- Photo grid -->
+{% if photo_faces %}
+<div class="photo-grid" id="photo-grid">
+    {% for item in photo_faces %}
+    <div class="glass-card photo-card" data-has-faces="{% if item.faces %}true{% else %}false{% endif %}">
+        <div class="photo-img-wrapper" id="wrapper-{{ item.photo.id }}">
+            <img class="photo-img"
+                 src="{{ item.photo.image.url }}"
+                 alt="Photo {{ item.photo.id }}"
+                 onload="scaleBoxes(this, {{ item.photo.id }})"/>
+
+            {% for face in item.faces %}
+            <div class="face-box"
+                 data-x="{{ face.x }}"
+                 data-y="{{ face.y }}"
+                 data-w="{{ face.width }}"
+                 data-h="{{ face.height }}"
+                 title="{% if face.person %}{{ face.person }}{% else %}Unknown{% endif %}"
+                 style="display:none;">
+            </div>
+            {% endfor %}
+
+            <div class="photo-overlay">
+                <div class="person-chips">
+                    {% for face in item.faces %}
+                        {% if face.person %}
+                        <span class="person-chip">{{ face.person }}</span>
+                        {% endif %}
+                    {% endfor %}
+                </div>
+                <div style="font-size:0.78rem; color:rgba(255,255,255,0.6);">
+                    {{ item.photo.uploaded_at|date:"M d, Y" }}
+                </div>
+            </div>
+        </div>
+
+        <div class="photo-meta">
+            <span class="photo-date">{{ item.photo.uploaded_at|date:"M d, Y · g:i A" }}</span>
+            {% if item.faces %}
+            <span class="face-count-badge">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+                {{ item.faces|length }} face{% if item.faces|length != 1 %}s{% endif %}
+            </span>
+            {% else %}
+            <span style="font-size:0.72rem; color:var(--text-muted);">No faces</span>
+            {% endif %}
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+{% else %}
+<div class="glass-card empty-state">
+    <div class="empty-icon">🖼️</div>
+    <h3>No photos yet</h3>
+    <p style="color:var(--text-muted); margin-bottom:1.5rem; font-size:0.9rem;">Upload your first photo to get started</p>
+    <a href="{% url 'upload_photo' %}" class="btn btn-accent">Upload a Photo</a>
+</div>
+{% endif %}
+
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+// ── Scale face boxes to displayed image size ──
+function scaleBoxes(img, photoId) {
+    const wrapper = document.getElementById('wrapper-' + photoId);
+    const boxes   = wrapper.querySelectorAll('.face-box');
+
+    const scaleX = img.clientWidth  / img.naturalWidth;
+    const scaleY = img.clientHeight / img.naturalHeight;
+
+    boxes.forEach(box => {
+        const x = parseFloat(box.dataset.x) * scaleX;
+        const y = parseFloat(box.dataset.y) * scaleY;
+        const w = parseFloat(box.dataset.w) * scaleX;
+        const h = parseFloat(box.dataset.h) * scaleY;
+
+        box.style.left    = x + 'px';
+        box.style.top     = y + 'px';
+        box.style.width   = w + 'px';
+        box.style.height  = h + 'px';
+        box.style.display = 'block';
+    });
+}
+
+// ── Count total faces for stat card ──
+document.addEventListener('DOMContentLoaded', () => {
+    const total = document.querySelectorAll('.face-box').length;
+    document.getElementById('total-faces').textContent = total;
+});
+
+// ── Grid filter ──
+function filterGrid(type, btn) {
+    document.querySelectorAll('.filter-tab').forEach(t => t.classList.remove('active'));
+    btn.classList.add('active');
+
+    document.querySelectorAll('.photo-card').forEach(card => {
+        const hasFaces = card.dataset.hasFaces === 'true';
+        if (type === 'all')      card.style.display = '';
+        if (type === 'faces')    card.style.display = hasFaces ? '' : 'none';
+        if (type === 'no-faces') card.style.display = !hasFaces ? '' : 'none';
+    });
+}
+</script>
+{% endblock %}

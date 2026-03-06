@@ -1,0 +1,138 @@
+{% extends "gallery/base.html" %}
+
+{% block title %}Rescan — AI SmartGallery{% endblock %}
+
+{% block extra_head %}
+<style>
+    .rescan-layout {
+        max-width: 600px;
+        margin: 0 auto;
+    }
+
+    .result-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 1rem;
+        margin: 2rem 0;
+    }
+
+    .result-card {
+        padding: 1.5rem;
+        border-radius: 14px;
+        text-align: center;
+    }
+
+    .result-card.purple { border: 1px solid rgba(108,99,255,0.25); background: rgba(108,99,255,0.08); }
+    .result-card.cyan   { border: 1px solid rgba(0,212,255,0.2);   background: rgba(0,212,255,0.06); }
+    .result-card.green  { border: 1px solid rgba(0,229,160,0.2);   background: rgba(0,229,160,0.06); }
+    .result-card.red    { border: 1px solid rgba(255,79,109,0.2);  background: rgba(255,79,109,0.06); }
+
+    .result-icon  { font-size: 1.8rem; margin-bottom: 0.5rem; }
+    .result-value {
+        font-family: 'Syne', sans-serif;
+        font-size: 2.2rem;
+        font-weight: 800;
+        line-height: 1;
+        margin-bottom: 0.3rem;
+    }
+    .result-card.purple .result-value { color: #a89aff; }
+    .result-card.cyan   .result-value { color: #67e8f9; }
+    .result-card.green  .result-value { color: #6ee7b7; }
+    .result-card.red    .result-value { color: #fca5a5; }
+
+    .result-label { font-size: 0.75rem; color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; }
+
+    .status-banner {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        padding: 1rem 1.4rem;
+        border-radius: 12px;
+        margin-bottom: 1.5rem;
+    }
+
+    .status-banner.ok      { background: rgba(0,229,160,0.1);  border: 1px solid rgba(0,229,160,0.25);  color: #6ee7b7; }
+    .status-banner.error   { background: rgba(255,79,109,0.1); border: 1px solid rgba(255,79,109,0.25); color: #fca5a5; }
+    .status-banner.warning { background: rgba(251,191,36,0.1); border: 1px solid rgba(251,191,36,0.25); color: #fcd34d; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="rescan-layout">
+
+    <div style="margin-bottom: 2rem;">
+        <a href="{% url 'gallery' %}" style="color:var(--text-muted); font-size:0.82rem; text-decoration:none; display:inline-flex; align-items:center; gap:0.3rem; margin-bottom:1rem;">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+            Back to Gallery
+        </a>
+        <h1 class="page-heading">DBSCAN <span>Rescan</span></h1>
+        <p class="page-subheading">Full re-clustering of all face embeddings in your library.</p>
+    </div>
+
+    <!-- Status banner -->
+    {% if result.status == "ok" %}
+    <div class="status-banner ok">
+        <span style="font-size:1.2rem;">✅</span>
+        <span>Clustering complete — all faces have been reassigned to persons.</span>
+    </div>
+    {% elif result.status == "no_data" %}
+    <div class="status-banner warning">
+        <span style="font-size:1.2rem;">⚠️</span>
+        <span>No embeddings found. Upload some photos first.</span>
+    </div>
+    {% elif result.status == "too_few" %}
+    <div class="status-banner warning">
+        <span style="font-size:1.2rem;">⚠️</span>
+        <span>Need at least 2 face embeddings to run clustering.</span>
+    </div>
+    {% else %}
+    <div class="status-banner error">
+        <span style="font-size:1.2rem;">❌</span>
+        <span>Something went wrong: {{ result.status }}</span>
+    </div>
+    {% endif %}
+
+    <!-- Result cards -->
+    {% if result.status == "ok" %}
+    <div class="result-grid">
+        <div class="glass-card result-card purple">
+            <div class="result-icon">🧑‍🤝‍🧑</div>
+            <div class="result-value">{{ result.clusters }}</div>
+            <div class="result-label">Clusters Found</div>
+        </div>
+        <div class="glass-card result-card green">
+            <div class="result-icon">👤</div>
+            <div class="result-value">{{ result.total_persons }}</div>
+            <div class="result-label">Total Persons</div>
+        </div>
+        <div class="glass-card result-card cyan">
+            <div class="result-icon">📊</div>
+            <div class="result-value">{{ result.noise }}</div>
+            <div class="result-label">Noise Faces</div>
+        </div>
+        <div class="glass-card result-card red">
+            <div class="result-icon">🔁</div>
+            <div class="result-value">{{ result.clusters|add:result.noise }}</div>
+            <div class="result-label">Total Processed</div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Actions -->
+    <div style="display:flex; gap:0.75rem; flex-wrap:wrap;">
+        <a href="{% url 'gallery' %}" class="btn btn-accent">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+            View Gallery
+        </a>
+        <a href="{% url 'people_view' %}" class="btn btn-ghost">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+            View People
+        </a>
+        <a href="{% url 'rescan' %}" class="btn btn-ghost">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+            Run Again
+        </a>
+    </div>
+
+</div>
+{% endblock %}

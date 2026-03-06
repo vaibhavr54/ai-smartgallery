@@ -1,0 +1,391 @@
+{% extends "gallery/base.html" %}
+{% block title %}Visual Search — AI SmartGallery{% endblock %}
+
+{% block extra_head %}
+<style>
+    .search-layout {
+        display: grid;
+        grid-template-columns: 340px 1fr;
+        gap: 2rem;
+        align-items: start;
+    }
+
+    @media (max-width: 860px) {
+        .search-layout { grid-template-columns: 1fr; }
+    }
+
+    /* ── Upload panel ── */
+    .upload-panel {
+        position: sticky;
+        top: 84px;
+    }
+
+    .drop-zone {
+        border: 2px dashed rgba(108,99,255,0.4);
+        border-radius: 16px;
+        background: rgba(108,99,255,0.05);
+        padding: 2rem 1.5rem;
+        text-align: center;
+        cursor: pointer;
+        transition: all 0.3s;
+        position: relative;
+        min-height: 200px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 0.5rem;
+    }
+
+    .drop-zone:hover, .drop-zone.dragover {
+        border-color: var(--accent);
+        background: rgba(108,99,255,0.1);
+        box-shadow: 0 0 30px rgba(108,99,255,0.15);
+    }
+
+    .drop-zone input[type="file"] {
+        position: absolute;
+        inset: 0;
+        opacity: 0;
+        cursor: pointer;
+        width: 100%;
+        height: 100%;
+    }
+
+    .preview-thumb {
+        width: 100%;
+        border-radius: 12px;
+        object-fit: cover;
+        max-height: 220px;
+        display: block;
+        margin-bottom: 0.5rem;
+    }
+
+    .search-btn {
+        width: 100%;
+        justify-content: center;
+        margin-top: 1rem;
+        padding: 0.75rem;
+        font-size: 0.9rem;
+    }
+
+    /* ── Results panel ── */
+    .results-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 1.25rem;
+    }
+
+    .results-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+        gap: 1rem;
+    }
+
+    .result-card {
+        border-radius: 14px;
+        overflow: hidden;
+        animation: fadeUp 0.3s ease both;
+        position: relative;
+    }
+
+    @keyframes fadeUp {
+        from { opacity: 0; transform: translateY(12px); }
+        to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .result-img-wrap {
+        position: relative;
+        aspect-ratio: 4/3;
+        overflow: hidden;
+        background: rgba(255,255,255,0.03);
+    }
+
+    .result-img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        transition: transform 0.3s;
+    }
+
+    .result-card:hover .result-img { transform: scale(1.05); }
+
+    .match-face-box {
+        position: absolute;
+        border: 2px solid var(--accent-2);
+        border-radius: 3px;
+        box-shadow: 0 0 0 1px rgba(0,212,255,0.2);
+        pointer-events: none;
+    }
+
+    .score-badge {
+        position: absolute;
+        top: 8px;
+        right: 8px;
+        padding: 0.2rem 0.55rem;
+        border-radius: 999px;
+        font-size: 0.72rem;
+        font-weight: 700;
+        backdrop-filter: blur(8px);
+    }
+
+    .score-high   { background: rgba(0,229,160,0.3);  color: #6ee7b7; border: 1px solid rgba(0,229,160,0.4); }
+    .score-medium { background: rgba(108,99,255,0.3); color: #c4b5fd; border: 1px solid rgba(108,99,255,0.4); }
+    .score-low    { background: rgba(251,191,36,0.3); color: #fcd34d; border: 1px solid rgba(251,191,36,0.4); }
+
+    .result-meta {
+        padding: 0.7rem 0.9rem;
+        border-top: 1px solid var(--border);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+    }
+
+    /* ── Empty / error states ── */
+    .state-box {
+        grid-column: 1 / -1;
+        text-align: center;
+        padding: 4rem 2rem;
+    }
+
+    .state-icon { font-size: 3rem; margin-bottom: 1rem; opacity: 0.5; }
+
+    .state-box h3 {
+        font-family: 'Syne', sans-serif;
+        font-size: 1.2rem;
+        color: var(--text-muted);
+        margin-bottom: 0.4rem;
+    }
+
+    .state-box p { font-size: 0.85rem; color: var(--text-muted); }
+
+    /* ── How it works ── */
+    .how-it-works {
+        margin-top: 1.5rem;
+        padding: 1.2rem;
+        border-radius: 14px;
+    }
+
+    .how-title {
+        font-family: 'Syne', sans-serif;
+        font-size: 0.8rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: var(--text-muted);
+        margin-bottom: 0.8rem;
+    }
+
+    .how-step {
+        display: flex;
+        align-items: flex-start;
+        gap: 0.7rem;
+        margin-bottom: 0.65rem;
+        font-size: 0.78rem;
+        color: var(--text-muted);
+        line-height: 1.4;
+    }
+
+    .how-step-num {
+        width: 18px;
+        height: 18px;
+        border-radius: 50%;
+        background: rgba(108,99,255,0.2);
+        border: 1px solid rgba(108,99,255,0.4);
+        color: #a89aff;
+        font-size: 0.65rem;
+        font-weight: 700;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+        margin-top: 1px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<div style="margin-bottom: 2rem;">
+    <h1 class="page-heading">Visual <span>Search</span></h1>
+    <p class="page-subheading">Upload a photo to find every matching face in your library.</p>
+</div>
+
+<div class="search-layout">
+
+    <!-- ── Left: Upload panel ── -->
+    <div class="upload-panel">
+        <form method="post" enctype="multipart/form-data" id="search-form">
+            {% csrf_token %}
+            <div class="glass-card" style="padding: 1.25rem;">
+
+                <div class="drop-zone" id="drop-zone">
+                    <input type="file" name="query_image" accept="image/*" id="file-input" required>
+                    <div id="drop-content">
+                        <div style="font-size:2.5rem; margin-bottom:0.5rem;">🔍</div>
+                        <div style="font-family:'Syne',sans-serif; font-weight:700; font-size:0.95rem; margin-bottom:0.3rem;">Upload a face photo</div>
+                        <div style="font-size:0.78rem; color:var(--text-muted);">JPG, PNG, WEBP supported</div>
+                    </div>
+                    <div id="preview-content" style="display:none; width:100%;">
+                        <img id="preview-img" src="" alt="Preview" class="preview-thumb">
+                        <div style="font-size:0.75rem; color:var(--text-muted);" id="preview-name"></div>
+                    </div>
+                </div>
+
+                <button type="submit" class="btn btn-accent search-btn" id="search-btn" disabled>
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+                    <span id="btn-label">Select a photo first</span>
+                </button>
+
+                <div id="progress" style="display:none; margin-top:0.75rem; height:3px; background:var(--glass); border-radius:99px; overflow:hidden;">
+                    <div style="height:100%; width:0%; background:linear-gradient(90deg,var(--accent),var(--accent-2)); border-radius:99px; animation:progress 3s ease-in-out forwards;"></div>
+                </div>
+            </div>
+        </form>
+
+        <!-- How it works -->
+        <div class="glass-card how-it-works">
+            <div class="how-title">How it works</div>
+            <div class="how-step">
+                <div class="how-step-num">1</div>
+                InsightFace extracts a 512-D embedding from your uploaded photo.
+            </div>
+            <div class="how-step">
+                <div class="how-step-num">2</div>
+                Cosine similarity compares it against every stored face embedding.
+            </div>
+            <div class="how-step">
+                <div class="how-step-num">3</div>
+                Photos above the 0.45 similarity threshold are returned, ranked by score.
+            </div>
+        </div>
+    </div>
+
+    <!-- ── Right: Results panel ── -->
+    <div>
+        <div class="results-header">
+            <div>
+                {% if searched %}
+                    {% if results %}
+                    <span style="font-family:'Syne',sans-serif; font-weight:700; font-size:1.1rem;">
+                        Found <span style="color:var(--accent-2);">{{ results|length }}</span> match{% if results|length != 1 %}es{% endif %}
+                    </span>
+                    {% elif error %}
+                    <span style="color:var(--danger); font-size:0.9rem;">{{ error }}</span>
+                    {% else %}
+                    <span style="font-family:'Syne',sans-serif; font-weight:700; font-size:1.1rem; color:var(--text-muted);">No matches found</span>
+                    {% endif %}
+                {% else %}
+                <span style="color:var(--text-muted); font-size:0.9rem;">Results will appear here after search</span>
+                {% endif %}
+            </div>
+            {% if results %}
+            <span class="badge badge-cyan">Ranked by similarity</span>
+            {% endif %}
+        </div>
+
+        <div class="results-grid">
+            {% if results %}
+                {% for item in results %}
+                <div class="glass-card result-card" style="animation-delay: {{ forloop.counter0 }}00ms">
+                    <div class="result-img-wrap" id="res-wrap-{{ forloop.counter }}">
+                        <img class="result-img"
+                             src="{{ item.photo.image.url }}"
+                             alt="Match"
+                             onload="drawFaceBox(this, {{ item.face.x }}, {{ item.face.y }}, {{ item.face.width }}, {{ item.face.height }}, {{ forloop.counter }})">
+
+                        <!-- Score badge -->
+                        <div class="score-badge {% if item.score >= 0.7 %}score-high{% elif item.score >= 0.55 %}score-medium{% else %}score-low{% endif %}">
+                            {{ item.score|floatformat:2 }}
+                        </div>
+                    </div>
+                    <div class="result-meta">
+                        <span style="font-size:0.75rem; color:var(--text-muted);">{{ item.photo.uploaded_at|date:"M d, Y" }}</span>
+                        {% if item.person %}
+                        <span class="badge badge-purple">{{ item.person }}</span>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endfor %}
+
+            {% elif searched and not error %}
+                <div class="glass-card state-box">
+                    <div class="state-icon">🔎</div>
+                    <h3>No matches found</h3>
+                    <p>Try a clearer photo or lower the search threshold in views.py</p>
+                </div>
+
+            {% elif error %}
+                <div class="glass-card state-box">
+                    <div class="state-icon">⚠️</div>
+                    <h3>{{ error }}</h3>
+                    <p>Make sure the photo contains a clearly visible face.</p>
+                </div>
+
+            {% else %}
+                <div class="glass-card state-box">
+                    <div class="state-icon">👆</div>
+                    <h3>Upload a photo to search</h3>
+                    <p>The AI will scan your entire library for matching faces.</p>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+
+</div>
+
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    const fileInput  = document.getElementById('file-input');
+    const dropZone   = document.getElementById('drop-zone');
+    const previewImg = document.getElementById('preview-img');
+    const dropContent  = document.getElementById('drop-content');
+    const previewContent = document.getElementById('preview-content');
+    const searchBtn  = document.getElementById('search-btn');
+    const btnLabel   = document.getElementById('btn-label');
+
+    fileInput.addEventListener('change', () => {
+        const file = fileInput.files[0];
+        if (!file) return;
+        previewImg.src = URL.createObjectURL(file);
+        document.getElementById('preview-name').textContent = file.name;
+        dropContent.style.display  = 'none';
+        previewContent.style.display = 'block';
+        searchBtn.disabled = false;
+        btnLabel.textContent = 'Search Library';
+    });
+
+    dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
+    dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+    dropZone.addEventListener('drop', e => {
+        e.preventDefault();
+        dropZone.classList.remove('dragover');
+        fileInput.files = e.dataTransfer.files;
+        fileInput.dispatchEvent(new Event('change'));
+    });
+
+    document.getElementById('search-form').addEventListener('submit', () => {
+        searchBtn.disabled = true;
+        btnLabel.textContent = 'Scanning library...';
+        document.getElementById('progress').style.display = 'block';
+    });
+
+    // Draw face box on result images
+    function drawFaceBox(img, x, y, w, h, idx) {
+        const wrap  = document.getElementById('res-wrap-' + idx);
+        const scaleX = img.clientWidth  / img.naturalWidth;
+        const scaleY = img.clientHeight / img.naturalHeight;
+
+        const box = document.createElement('div');
+        box.className  = 'match-face-box';
+        box.style.left   = (x * scaleX) + 'px';
+        box.style.top    = (y * scaleY) + 'px';
+        box.style.width  = (w * scaleX) + 'px';
+        box.style.height = (h * scaleY) + 'px';
+        wrap.appendChild(box);
+    }
+</script>
+{% endblock %}
