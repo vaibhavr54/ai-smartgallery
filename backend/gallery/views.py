@@ -9,9 +9,9 @@ from ai_engine.face_recognition.clusterer import run_dbscan_clustering
 
 
 # ---------- FACE QUALITY FILTERS ----------
-MIN_FACE_SIZE  = 80     # pixels
-MIN_CONFIDENCE = 0.60   # detector confidence
-MIN_RATIO      = 0.6    # width/height ratio
+MIN_FACE_SIZE  = 50     # pixels
+MIN_CONFIDENCE = 0.45   # detector confidence
+MIN_RATIO      = 0.5    # width/height ratio
 MAX_RATIO      = 1.6
 
 
@@ -103,6 +103,14 @@ def process_photo(photo):
 
         saved += 1
         print(f"[pipeline] Saved Face {face_obj.id} → Person {face_obj.person_id}")
+        # --- Generate CLIP embedding for the whole photo ---
+        try:
+            from ai_engine.clip_search.encoder import encode_image
+            photo.clip_embedding = encode_image(image_path)
+            photo.save()
+            print(f"[pipeline] CLIP embedding saved for Photo {photo.id}")
+        except Exception as e:
+            print(f"[pipeline] CLIP embedding failed: {e}")
 
     print(f"=== PIPELINE END | {saved} faces saved ===\n")
 
@@ -133,8 +141,9 @@ def gallery_view(request):
         })
     return render(request, "gallery/gallery.html", {
         "photo_faces":   photo_faces,
-        "person_count":  Person.objects.count(),   # ← add this
-        "event_count":   Event.objects.count(),    # ← add this
+        "person_count":  Person.objects.count(),
+        "event_count":   Event.objects.count(),    
+        "face_count":    Face.objects.count(),
     })
 
 def rescan_view(request):
@@ -215,4 +224,84 @@ def visual_search(request):
         'person_count': Person.objects.count(),
         'event_count':  Event.objects.count(),
         'searched':     request.method == 'POST',
+    })
+
+def nl_search(request):
+    from ai_engine.clip_search.encoder import encode_text
+    from ai_engine.face_recognition.matcher import cosine_similarity
+
+    results = []
+    query   = ''
+    error   = None
+    searched = False
+
+    if request.method == 'GET' and request.GET.get('q'):
+        query    = request.GET.get('q', '').strip()
+        searched = True
+
+        if not query:
+            error = "Please enter a search query."
+        else:
+            try:
+                query_vec = encode_text(query)
+                THRESHOLD = 0.20  # CLIP similarity is lower than face similarity
+
+                scored = []
+                for photo in Photo.objects.exclude(clip_embedding__isnull=True):
+                    score = cosine_similarity(query_vec, photo.clip_embedding)
+                    if score >= THRESHOLD:
+                        scored.append({'photo': photo, 'score': score})
+
+                results = sorted(scored, key=lambda x: x['score'], reverse=True)[:20]
+
+            except Exception as e:
+                error = f"Search failed: {e}"
+
+    return render(request, 'gallery/nl_search.html', {
+        'results':       results,
+        'query':         query,
+        'error':         error,
+        'searched':      searched,
+        'person_count':  Person.objects.count(),
+        'event_count':   Event.objects.count(),
+    })
+
+def batch_upload(request):
+    if request.method == 'POST':
+        images = request.FILES.getlist('images')  # getlist handles multiple files
+        
+        if not images:
+            return render(request, 'gallery/batch_upload.html', {
+                'error': 'No images selected.',
+                'person_count': Person.objects.count(),
+                'event_count': Event.objects.count(),
+            })
+
+        results = []
+        for image_file in images:
+            # Create Photo object manually (not via form)
+            photo = Photo.objects.create()
+            photo.image.save(image_file.name, image_file, save=True)
+            
+            # Run full AI pipeline
+            try:
+                process_photo(photo)
+                # Generate CLIP embedding
+                from ai_engine.clip_search.encoder import encode_image
+                photo.clip_embedding = encode_image(photo.image.path)
+                photo.save()
+                results.append({'name': image_file.name, 'status': 'ok', 'id': photo.id})
+            except Exception as e:
+                results.append({'name': image_file.name, 'status': 'error', 'error': str(e)})
+
+        return render(request, 'gallery/batch_upload.html', {
+            'results':      results,
+            'done':         True,
+            'person_count': Person.objects.count(),
+            'event_count':  Event.objects.count(),
+        })
+
+    return render(request, 'gallery/batch_upload.html', {
+        'person_count': Person.objects.count(),
+        'event_count':  Event.objects.count(),
     })

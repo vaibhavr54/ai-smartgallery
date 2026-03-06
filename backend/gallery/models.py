@@ -23,9 +23,10 @@ class Person(models.Model):
 
 
 class Photo(models.Model):
-    image = models.ImageField(upload_to='photos/')
-    uploaded_at = models.DateTimeField(auto_now_add=True)
-    event = models.ForeignKey(Event, on_delete=models.SET_NULL, null=True, blank=True)
+    image           = models.ImageField(upload_to='photos/')
+    uploaded_at     = models.DateTimeField(auto_now_add=True)
+    event           = models.ForeignKey(Event, on_delete=models.SET_NULL, null=True, blank=True)
+    clip_embedding  = models.JSONField(null=True, blank=True)  # ← only new line
 
     def __str__(self):
         return f"Photo {self.id}"

@@ -5,7 +5,7 @@ from numpy.linalg import norm
 
 # How similar two embeddings must be to be considered the same person.
 # 0.50 is a solid starting point — lower = stricter, higher = more lenient
-SIMILARITY_THRESHOLD = 0.50
+SIMILARITY_THRESHOLD = 0.35
 
 
 def cosine_similarity(vec_a, vec_b):

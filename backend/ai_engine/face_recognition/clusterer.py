@@ -10,7 +10,7 @@ from gallery.models import Embedding, Face, Person
 # eps: max cosine distance between two faces to be considered neighbours
 #      lower = stricter clusters (fewer false merges)
 #      higher = looser clusters (fewer missed matches)
-EPS          = 0.55
+EPS          = 0.60
 
 # min_samples: minimum faces needed to form a cluster (not noise)
 #              1 = every single face becomes its own person (no orphans)

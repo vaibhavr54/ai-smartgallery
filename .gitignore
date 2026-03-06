@@ -1,22 +1,18 @@
-# Python virtual environment
-venv/
+# Virtual environment
 venvv/
-env/
-
-# Python cache
-__pycache__/
-*.pyc
 
 # Django
+*.pyc
+__pycache__/
 db.sqlite3
 media/
 
-# Environment variables
+# InsightFace model cache
+*.onnx
+
+# Environment secrets
 .env
 
-# VS Code
-.vscode/
-
-# OS files
+# OS
 .DS_Store
 Thumbs.db

@@ -8,4 +8,6 @@ urlpatterns = [
     path('people/',  views.people_view,   name='people_view'),
     path('search/',  views.visual_search, name='visual_search'),
     path('search/', views.visual_search, name='visual_search'),
+    path('nl-search/', views.nl_search,   name='nl_search'), 
+    path('batch-upload/', views.batch_upload, name='batch_upload'),
 ]

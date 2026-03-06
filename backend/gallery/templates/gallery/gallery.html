@@ -89,16 +89,16 @@
     .photo-img-wrapper {
         position: relative;
         overflow: hidden;
-        aspect-ratio: 4/3;
+        aspect-ratio: unset;
+        max-height: 320px;
         background: rgba(255,255,255,0.03);
     }
 
     .photo-img {
-        width: 100%;
-        height: 100%;
-        object-fit: cover;
-        display: block;
-        transition: transform 0.4s ease;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    background: rgba(0,0,0,0.3); 
     }
 
     /* Face bounding boxes */
@@ -222,7 +222,7 @@
     </div>
     <div class="glass-card stat-card cyan">
         <div class="stat-label">👤 Faces Found</div>
-        <div class="stat-value cyan" id="total-faces">—</div>
+        <div class="stat-value cyan">{{ face_count }}</div>
     </div>
     <div class="glass-card stat-card green">
         <div class="stat-label">🧑‍🤝‍🧑 People</div>
@@ -249,10 +249,6 @@
         <a href="{% url 'rescan' %}" class="btn btn-ghost">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
             Rescan
-        </a>
-        <a href="{% url 'upload_photo' %}" class="btn btn-accent">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-            Upload Photo
         </a>
     </div>
 </div>
@@ -343,11 +339,6 @@ function scaleBoxes(img, photoId) {
     });
 }
 
-// ── Count total faces for stat card ──
-document.addEventListener('DOMContentLoaded', () => {
-    const total = document.querySelectorAll('.face-box').length;
-    document.getElementById('total-faces').textContent = total;
-});
 
 // ── Grid filter ──
 function filterGrid(type, btn) {

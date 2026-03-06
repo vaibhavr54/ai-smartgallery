@@ -1,0 +1,386 @@
+{% extends "gallery/base.html" %}
+{% block title %}Batch Upload — AI SmartGallery{% endblock %}
+
+{% block extra_head %}
+<style>
+    .batch-layout {
+        max-width: 860px;
+        margin: 0 auto;
+    }
+
+    /* ── Drop zone ── */
+    .drop-zone {
+        border: 2px dashed rgba(108,99,255,0.4);
+        border-radius: 20px;
+        background: rgba(108,99,255,0.05);
+        padding: 3.5rem 2rem;
+        text-align: center;
+        cursor: pointer;
+        transition: all 0.3s;
+        position: relative;
+    }
+
+    .drop-zone:hover, .drop-zone.dragover {
+        border-color: var(--accent);
+        background: rgba(108,99,255,0.1);
+        box-shadow: 0 0 40px rgba(108,99,255,0.15);
+    }
+
+    .drop-zone input[type="file"] {
+        position: absolute;
+        inset: 0;
+        opacity: 0;
+        cursor: pointer;
+        width: 100%;
+        height: 100%;
+    }
+
+    .drop-icon {
+        font-size: 3.5rem;
+        margin-bottom: 1rem;
+        display: block;
+        animation: float 3s ease-in-out infinite;
+    }
+
+    @keyframes float {
+        0%, 100% { transform: translateY(0); }
+        50%       { transform: translateY(-8px); }
+    }
+
+    /* ── Preview grid ── */
+    .preview-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+        gap: 0.6rem;
+        margin-top: 1.5rem;
+    }
+
+    .preview-thumb-wrap {
+        position: relative;
+        aspect-ratio: 1;
+        border-radius: 8px;
+        overflow: hidden;
+        border: 1px solid var(--border);
+    }
+
+    .preview-thumb-wrap img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
+
+    .preview-thumb-wrap .remove-btn {
+        position: absolute;
+        top: 3px; right: 3px;
+        width: 18px; height: 18px;
+        border-radius: 50%;
+        background: rgba(255,79,109,0.8);
+        border: none;
+        color: white;
+        font-size: 0.6rem;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        line-height: 1;
+    }
+
+    /* ── Submit area ── */
+    .submit-area {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-top: 1.5rem;
+        flex-wrap: wrap;
+        gap: 1rem;
+    }
+
+    .file-count {
+        font-size: 0.85rem;
+        color: var(--text-muted);
+    }
+
+    .file-count span {
+        color: var(--accent-2);
+        font-weight: 700;
+        font-family: 'Syne', sans-serif;
+    }
+
+    /* ── Progress ── */
+    .progress-wrap {
+        display: none;
+        margin-top: 1rem;
+    }
+
+    .progress-bar-bg {
+        height: 6px;
+        background: var(--glass);
+        border-radius: 99px;
+        overflow: hidden;
+        margin-bottom: 0.5rem;
+    }
+
+    .progress-bar-fill {
+        height: 100%;
+        background: linear-gradient(90deg, var(--accent), var(--accent-2));
+        border-radius: 99px;
+        animation: uploading 3s ease-in-out infinite;
+        width: 100%;
+    }
+
+    @keyframes uploading {
+        0%   { transform: translateX(-100%); }
+        100% { transform: translateX(100%); }
+    }
+
+    .progress-label {
+        font-size: 0.78rem;
+        color: var(--text-muted);
+        text-align: center;
+    }
+
+    /* ── Results ── */
+    .results-list {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+        margin-top: 1.5rem;
+    }
+
+    .result-item {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        padding: 0.7rem 1rem;
+        border-radius: 10px;
+        font-size: 0.85rem;
+    }
+
+    .result-item.ok    { background: rgba(0,229,160,0.08);  border: 1px solid rgba(0,229,160,0.2); }
+    .result-item.error { background: rgba(255,79,109,0.08); border: 1px solid rgba(255,79,109,0.2); }
+
+    .result-icon { font-size: 1rem; flex-shrink: 0; }
+    .result-name { flex: 1; color: var(--text-bright); font-weight: 500; }
+    .result-status { font-size: 0.75rem; }
+    .result-item.ok    .result-status { color: #6ee7b7; }
+    .result-item.error .result-status { color: #fca5a5; }
+
+    /* ── Summary banner ── */
+    .summary-banner {
+        padding: 1.25rem 1.5rem;
+        border-radius: 14px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 1rem;
+        margin-bottom: 1.5rem;
+        background: rgba(0,229,160,0.08);
+        border: 1px solid rgba(0,229,160,0.2);
+    }
+
+    .summary-stat {
+        text-align: center;
+    }
+
+    .summary-stat-value {
+        font-family: 'Syne', sans-serif;
+        font-size: 1.8rem;
+        font-weight: 800;
+        color: #6ee7b7;
+        line-height: 1;
+    }
+
+    .summary-stat-label {
+        font-size: 0.7rem;
+        color: var(--text-muted);
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        margin-top: 0.2rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="batch-layout">
+
+    <div style="margin-bottom: 2rem;">
+        <a href="{% url 'gallery' %}" style="color:var(--text-muted); font-size:0.82rem; text-decoration:none; display:inline-flex; align-items:center; gap:0.3rem; margin-bottom:1rem;">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+            Back to Gallery
+        </a>
+        <h1 class="page-heading">Batch <span>Upload</span></h1>
+        <p class="page-subheading">Upload multiple photos at once. AI processes each one automatically.</p>
+    </div>
+
+    {% if done %}
+        <!-- ── Results view ── -->
+        {% with ok_count=results|length %}
+        <div class="summary-banner">
+            <div>
+                <div style="font-family:'Syne',sans-serif; font-weight:700; font-size:1.1rem; margin-bottom:0.2rem;">
+                    Batch processing complete ✅
+                </div>
+                <div style="font-size:0.82rem; color:var(--text-muted);">
+                    All photos processed through the AI pipeline
+                </div>
+            </div>
+            <div style="display:flex; gap:2rem;">
+                <div class="summary-stat">
+                    <div class="summary-stat-value">{{ results|length }}</div>
+                    <div class="summary-stat-label">Uploaded</div>
+                </div>
+                <div class="summary-stat">
+                    <div class="summary-stat-value">{{ person_count }}</div>
+                    <div class="summary-stat-label">Total People</div>
+                </div>
+            </div>
+        </div>
+        {% endwith %}
+
+        <div class="results-list">
+            {% for r in results %}
+            <div class="result-item {{ r.status }}">
+                <span class="result-icon">{% if r.status == 'ok' %}✅{% else %}❌{% endif %}</span>
+                <span class="result-name">{{ r.name }}</span>
+                <span class="result-status">
+                    {% if r.status == 'ok' %}Processed successfully{% else %}{{ r.error }}{% endif %}
+                </span>
+            </div>
+            {% endfor %}
+        </div>
+
+        <div style="display:flex; gap:0.75rem; margin-top:1.5rem; flex-wrap:wrap;">
+            <a href="{% url 'gallery' %}" class="btn btn-accent">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+                View Gallery
+            </a>
+            <a href="{% url 'batch_upload' %}" class="btn btn-ghost">Upload More</a>
+            <a href="{% url 'rescan' %}" class="btn btn-ghost">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+                Run Rescan
+            </a>
+        </div>
+
+    {% else %}
+        <!-- ── Upload form ── -->
+        <div class="glass-card" style="padding: 1.5rem;">
+            <form method="post" enctype="multipart/form-data" id="batch-form">
+                {% csrf_token %}
+
+                <div class="drop-zone" id="drop-zone">
+                    <input type="file" name="images" accept="image/*" multiple id="file-input">
+                    <span class="drop-icon">📸</span>
+                    <div style="font-family:'Syne',sans-serif; font-weight:700; font-size:1.1rem; margin-bottom:0.4rem;">
+                        Drop photos here
+                    </div>
+                    <div style="font-size:0.82rem; color:var(--text-muted);">
+                        or click to browse · Select multiple files · JPG, PNG, WEBP
+                    </div>
+                </div>
+
+                <!-- Preview grid -->
+                <div class="preview-grid" id="preview-grid"></div>
+
+                <div class="submit-area">
+                    <div class="file-count" id="file-count">No files selected</div>
+                    <button type="submit" class="btn btn-accent" id="submit-btn" disabled>
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                        <span id="btn-label">Select photos first</span>
+                    </button>
+                </div>
+
+                <div class="progress-wrap" id="progress-wrap">
+                    <div class="progress-bar-bg">
+                        <div class="progress-bar-fill"></div>
+                    </div>
+                    <div class="progress-label" id="progress-label">Processing with AI — this may take a moment...</div>
+                </div>
+
+            </form>
+        </div>
+
+        <!-- Info cards -->
+        <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:1rem; margin-top:1.25rem;">
+            <div class="glass-card" style="padding:1rem 1.1rem;">
+                <div style="font-size:1.3rem; margin-bottom:0.4rem;">🧠</div>
+                <div style="font-family:'Syne',sans-serif; font-size:0.82rem; font-weight:700; margin-bottom:0.2rem;">Face Detection</div>
+                <div style="font-size:0.75rem; color:var(--text-muted);">InsightFace runs on every photo automatically</div>
+            </div>
+            <div class="glass-card" style="padding:1rem 1.1rem;">
+                <div style="font-size:1.3rem; margin-bottom:0.4rem;">🔗</div>
+                <div style="font-family:'Syne',sans-serif; font-size:0.82rem; font-weight:700; margin-bottom:0.2rem;">Person Matching</div>
+                <div style="font-size:0.75rem; color:var(--text-muted);">Faces matched to existing persons or new ones created</div>
+            </div>
+            <div class="glass-card" style="padding:1rem 1.1rem;">
+                <div style="font-size:1.3rem; margin-bottom:0.4rem;">✨</div>
+                <div style="font-family:'Syne',sans-serif; font-size:0.82rem; font-weight:700; margin-bottom:0.2rem;">CLIP Indexing</div>
+                <div style="font-size:0.75rem; color:var(--text-muted);">Every photo indexed for natural language search</div>
+            </div>
+        </div>
+    {% endif %}
+
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    const fileInput  = document.getElementById('file-input');
+    const dropZone   = document.getElementById('drop-zone');
+    const previewGrid = document.getElementById('preview-grid');
+    const submitBtn  = document.getElementById('submit-btn');
+    const btnLabel   = document.getElementById('btn-label');
+    const fileCount  = document.getElementById('file-count');
+
+    let selectedFiles = [];
+
+    fileInput.addEventListener('change', () => {
+        handleFiles(Array.from(fileInput.files));
+    });
+
+    function handleFiles(files) {
+        selectedFiles = files;
+        previewGrid.innerHTML = '';
+
+        files.forEach((file, idx) => {
+            const wrap = document.createElement('div');
+            wrap.className = 'preview-thumb-wrap';
+
+            const img = document.createElement('img');
+            img.src = URL.createObjectURL(file);
+
+            wrap.appendChild(img);
+            previewGrid.appendChild(wrap);
+        });
+
+        const count = files.length;
+        fileCount.innerHTML = `<span>${count}</span> photo${count !== 1 ? 's' : ''} selected`;
+        submitBtn.disabled = count === 0;
+        btnLabel.textContent = count > 0 ? `Upload & Process ${count} Photo${count !== 1 ? 's' : ''}` : 'Select photos first';
+    }
+
+    // Drag and drop
+    dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
+    dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+    dropZone.addEventListener('drop', e => {
+        e.preventDefault();
+        dropZone.classList.remove('dragover');
+        const files = Array.from(e.dataTransfer.files).filter(f => f.type.startsWith('image/'));
+        handleFiles(files);
+
+        // Sync to input
+        const dt = new DataTransfer();
+        files.forEach(f => dt.items.add(f));
+        fileInput.files = dt.files;
+    });
+
+    // Show progress on submit
+    document.getElementById('batch-form').addEventListener('submit', () => {
+        submitBtn.disabled = true;
+        btnLabel.textContent = 'Processing...';
+        document.getElementById('progress-wrap').style.display = 'block';
+        document.getElementById('progress-label').textContent =
+            `Processing ${selectedFiles.length} photo${selectedFiles.length !== 1 ? 's' : ''} through AI pipeline...`;
+    });
+</script>
+{% endblock %}
