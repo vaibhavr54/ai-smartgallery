@@ -22,6 +22,7 @@
             --text-muted:  rgba(240,244,255,0.5);
             --danger:      #ff4f6d;
             --success:     #00e5a0;
+            --nav-height:  64px;
         }
 
         html { scroll-behavior: smooth; }
@@ -34,7 +35,6 @@
             overflow-x: hidden;
         }
 
-        /* ── Animated mesh background ── */
         body::before {
             content: '';
             position: fixed;
@@ -47,7 +47,7 @@
             z-index: 0;
         }
 
-        /* ── Navbar ── */
+        /* ══ NAVBAR ══ */
         nav {
             position: sticky;
             top: 0;
@@ -55,9 +55,9 @@
             display: flex;
             align-items: center;
             justify-content: space-between;
-            padding: 0 2.5rem;
-            height: 64px;
-            background: rgba(5,8,16,0.75);
+            padding: 0 2rem;
+            height: var(--nav-height);
+            background: rgba(5,8,16,0.80);
             backdrop-filter: blur(20px);
             -webkit-backdrop-filter: blur(20px);
             border-bottom: 1px solid var(--border);
@@ -66,19 +66,20 @@
         .nav-logo {
             font-family: 'Syne', sans-serif;
             font-weight: 800;
-            font-size: 1.25rem;
+            font-size: 1.2rem;
             letter-spacing: -0.02em;
             background: linear-gradient(135deg, var(--accent), var(--accent-2));
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
             background-clip: text;
             text-decoration: none;
+            flex-shrink: 0;
         }
 
         .nav-links {
             display: flex;
             align-items: center;
-            gap: 0.5rem;
+            gap: 0.25rem;
             list-style: none;
         }
 
@@ -86,17 +87,17 @@
             display: flex;
             align-items: center;
             gap: 0.4rem;
-            padding: 0.45rem 1rem;
+            padding: 0.4rem 0.85rem;
             border-radius: 8px;
             color: var(--text-muted);
             text-decoration: none;
-            font-size: 0.875rem;
+            font-size: 0.85rem;
             font-weight: 500;
             transition: color 0.2s, background 0.2s;
+            white-space: nowrap;
         }
 
-        .nav-links a:hover,
-        .nav-links a.active {
+        .nav-links a:hover, .nav-links a.active {
             color: var(--text-bright);
             background: var(--glass-hover);
         }
@@ -105,6 +106,7 @@
             background: linear-gradient(135deg, var(--accent), #8b5cf6);
             color: #fff;
             box-shadow: 0 0 20px var(--accent-glow);
+            margin-left: 0.25rem;
         }
 
         .nav-links a.btn-primary:hover {
@@ -112,17 +114,99 @@
             transform: translateY(-1px);
         }
 
-        /* ── Page wrapper ── */
-        .page { position: relative; z-index: 1; padding: 2.5rem; max-width: 1400px; margin: 0 auto; }
+        /* ══ HAMBURGER ══ */
+        .hamburger {
+            display: none;
+            flex-direction: column;
+            gap: 5px;
+            cursor: pointer;
+            padding: 8px;
+            border: none;
+            background: none;
+            border-radius: 8px;
+            transition: background 0.2s;
+        }
 
-        /* ── Glass card ── */
+        .hamburger:hover { background: var(--glass); }
+
+        .hamburger span {
+            display: block;
+            width: 22px;
+            height: 2px;
+            background: var(--text-bright);
+            border-radius: 99px;
+            transition: all 0.3s ease;
+        }
+
+        .hamburger.open span:nth-child(1) { transform: translateY(7px) rotate(45deg); }
+        .hamburger.open span:nth-child(2) { opacity: 0; transform: scaleX(0); }
+        .hamburger.open span:nth-child(3) { transform: translateY(-7px) rotate(-45deg); }
+
+        /* ══ MOBILE DRAWER ══ */
+        .mobile-menu {
+            display: none;
+            position: fixed;
+            top: var(--nav-height);
+            left: 0; right: 0;
+            background: rgba(5,8,16,0.97);
+            backdrop-filter: blur(20px);
+            border-bottom: 1px solid var(--border);
+            padding: 0.75rem;
+            z-index: 99;
+            flex-direction: column;
+            gap: 0.2rem;
+            animation: slideDown 0.2s ease;
+        }
+
+        .mobile-menu.open { display: flex; }
+
+        @keyframes slideDown {
+            from { opacity: 0; transform: translateY(-8px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+
+        .mobile-menu a {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.8rem 1rem;
+            border-radius: 10px;
+            color: var(--text-muted);
+            text-decoration: none;
+            font-size: 0.9rem;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+
+        .mobile-menu a:hover, .mobile-menu a.active {
+            color: var(--text-bright);
+            background: var(--glass-hover);
+        }
+
+        .mobile-menu a.btn-primary {
+            background: linear-gradient(135deg, var(--accent), #8b5cf6);
+            color: #fff;
+            margin-top: 0.4rem;
+            justify-content: center;
+        }
+
+        /* ══ PAGE ══ */
+        .page {
+            position: relative;
+            z-index: 1;
+            padding: 2.5rem;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        /* ══ GLASS CARD ══ */
         .glass-card {
             background: var(--glass);
             border: 1px solid var(--border);
             border-radius: 16px;
             backdrop-filter: blur(12px);
             -webkit-backdrop-filter: blur(12px);
-            transition: background 0.2s, border-color 0.2s, transform 0.2s;
+            transition: background 0.2s, border-color 0.2s;
         }
 
         .glass-card:hover {
@@ -130,11 +214,11 @@
             border-color: rgba(255,255,255,0.16);
         }
 
-        /* ── Page heading ── */
+        /* ══ TYPOGRAPHY ══ */
         .page-heading {
             font-family: 'Syne', sans-serif;
             font-weight: 800;
-            font-size: clamp(1.8rem, 3vw, 2.6rem);
+            font-size: clamp(1.5rem, 3vw, 2.6rem);
             letter-spacing: -0.03em;
             margin-bottom: 0.4rem;
         }
@@ -152,7 +236,7 @@
             margin-bottom: 2rem;
         }
 
-        /* ── Pill badge ── */
+        /* ══ BADGES ══ */
         .badge {
             display: inline-flex;
             align-items: center;
@@ -170,7 +254,7 @@
         .badge-green  { background: rgba(0,229,160,0.15); color: #6ee7b7; border: 1px solid rgba(0,229,160,0.25); }
         .badge-red    { background: rgba(255,79,109,0.15); color: #fca5a5; border: 1px solid rgba(255,79,109,0.25); }
 
-        /* ── Buttons ── */
+        /* ══ BUTTONS ══ */
         .btn {
             display: inline-flex;
             align-items: center;
@@ -205,18 +289,15 @@
         .btn-danger { background: rgba(255,79,109,0.15); color: var(--danger); border: 1px solid rgba(255,79,109,0.3); }
         .btn-danger:hover { background: rgba(255,79,109,0.25); }
 
-        /* ── Stat cards row ── */
+        /* ══ STATS ROW ══ */
         .stats-row {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+            grid-template-columns: repeat(4, 1fr);
             gap: 1rem;
             margin-bottom: 2rem;
         }
 
-        .stat-card {
-            padding: 1.2rem 1.4rem;
-            border-radius: 14px;
-        }
+        .stat-card { padding: 1.2rem 1.4rem; border-radius: 14px; }
 
         .stat-label {
             font-size: 0.72rem;
@@ -234,18 +315,14 @@
             line-height: 1;
         }
 
-        /* ── Divider ── */
-        .divider {
-            height: 1px;
-            background: var(--border);
-            margin: 2rem 0;
-        }
+        /* ══ MISC ══ */
+        .divider { height: 1px; background: var(--border); margin: 2rem 0; }
 
-        /* ── Toast notifications ── */
+        /* ══ TOAST ══ */
         #toast-container {
             position: fixed;
-            bottom: 2rem;
-            right: 2rem;
+            bottom: 1.5rem;
+            right: 1.5rem;
             z-index: 9999;
             display: flex;
             flex-direction: column;
@@ -260,6 +337,7 @@
             border: 1px solid var(--border);
             backdrop-filter: blur(16px);
             animation: slideIn 0.3s ease;
+            max-width: 300px;
         }
 
         @keyframes slideIn {
@@ -267,24 +345,83 @@
             to   { opacity: 1; transform: translateX(0); }
         }
 
-        /* ── Scrollbar ── */
-        ::-webkit-scrollbar { width: 6px; }
+        /* ══ SCROLLBAR ══ */
+        ::-webkit-scrollbar { width: 5px; }
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 99px; }
-        ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.2); }
 
-        /* ── Responsive ── */
-        @media (max-width: 640px) {
+        /* ════════════════════════════
+           RESPONSIVE BREAKPOINTS
+        ════════════════════════════ */
+
+        /* Tablet */
+        @media (max-width: 900px) {
+            .stats-row { grid-template-columns: repeat(2, 1fr); }
+            .page { padding: 2rem 1.5rem; }
+        }
+
+        /* Mobile — hide desktop nav, show hamburger */
+        @media (max-width: 680px) {
             nav { padding: 0 1rem; }
-            .page { padding: 1.5rem 1rem; }
+            .nav-links { display: none; }
+            .hamburger { display: flex; }
+
+            .page { padding: 1.25rem 1rem; }
+
+            .stats-row {
+                grid-template-columns: repeat(2, 1fr);
+                gap: 0.75rem;
+            }
+
+            .stat-value { font-size: 1.7rem; }
+            .stat-card  { padding: 1rem; }
+
+            .page-subheading { font-size: 0.85rem; margin-bottom: 1.25rem; }
+
+            /* Stack toolbar */
+            .toolbar {
+                flex-direction: column !important;
+                align-items: stretch !important;
+                gap: 0.75rem !important;
+            }
+
+            .toolbar > div {
+                display: flex;
+                gap: 0.5rem;
+            }
+
+            .toolbar .btn {
+                flex: 1;
+                justify-content: center;
+                font-size: 0.8rem;
+                padding: 0.5rem 0.75rem;
+            }
+
+            /* Filter tabs scroll on mobile */
+            .filter-tabs {
+                overflow-x: auto;
+                -webkit-overflow-scrolling: touch;
+            }
+
+            #toast-container { left: 1rem; right: 1rem; bottom: 1rem; }
+            .toast { max-width: 100%; }
+        }
+
+        /* Small phones */
+        @media (max-width: 400px) {
+            .stat-label { font-size: 0.62rem; }
+            .stat-value { font-size: 1.4rem; }
+            .stats-row  { gap: 0.5rem; }
         }
     </style>
     {% block extra_head %}{% endblock %}
 </head>
 <body>
 
-<nav>
+<nav id="main-nav">
     <a href="{% url 'gallery' %}" class="nav-logo">⚡ SmartGallery</a>
+
+    <!-- Desktop links -->
     <ul class="nav-links">
         <li><a href="{% url 'gallery' %}">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
@@ -298,16 +435,45 @@
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
             Search
         </a></li>
-        <li><a href="{% url 'upload_photo' %}" class="btn-primary">
+        <li><a href="{% url 'rescan' %}">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+            Rescan
+        </a></li>
+        <li><a href="{% url 'batch_upload' %}" class="btn-primary">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
             Upload
         </a></li>
-        <li><a href="{% url 'batch_upload' %}">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-            Batch Upload
-        </a></li>
     </ul>
+
+    <!-- Hamburger -->
+    <button class="hamburger" id="hamburger" aria-label="Toggle menu">
+        <span></span><span></span><span></span>
+    </button>
 </nav>
+
+<!-- Mobile drawer -->
+<div class="mobile-menu" id="mobile-menu">
+    <a href="{% url 'gallery' %}">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+        Gallery
+    </a>
+    <a href="{% url 'people_view' %}">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+        People
+    </a>
+    <a href="{% url 'nl_search' %}">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+        Smart Search
+    </a>
+    <a href="{% url 'rescan' %}">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+        Rescan
+    </a>
+    <a href="{% url 'batch_upload' %}" class="btn-primary">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        Upload Photos
+    </a>
+</div>
 
 <div id="toast-container"></div>
 
@@ -316,12 +482,38 @@
 </main>
 
 <script>
-    // Highlight active nav link
-    document.querySelectorAll('.nav-links a').forEach(a => {
-        if (a.href === window.location.href) a.classList.add('active');
+    // Active nav
+    const path = window.location.pathname;
+    document.querySelectorAll('.nav-links a, .mobile-menu a').forEach(a => {
+        if (a.getAttribute('href') === path) a.classList.add('active');
     });
 
-    // Toast helper (call from any page)
+    // Hamburger
+    const hamburger  = document.getElementById('hamburger');
+    const mobileMenu = document.getElementById('mobile-menu');
+    const mainNav    = document.getElementById('main-nav');
+
+    hamburger.addEventListener('click', e => {
+        e.stopPropagation();
+        hamburger.classList.toggle('open');
+        mobileMenu.classList.toggle('open');
+    });
+
+    mobileMenu.querySelectorAll('a').forEach(a => {
+        a.addEventListener('click', () => {
+            hamburger.classList.remove('open');
+            mobileMenu.classList.remove('open');
+        });
+    });
+
+    document.addEventListener('click', e => {
+        if (!mainNav.contains(e.target) && !mobileMenu.contains(e.target)) {
+            hamburger.classList.remove('open');
+            mobileMenu.classList.remove('open');
+        }
+    });
+
+    // Toast
     function showToast(msg, type='info') {
         const t = document.createElement('div');
         t.className = 'toast';
