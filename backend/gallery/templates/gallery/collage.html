@@ -1,0 +1,702 @@
+{% extends "gallery/base.html" %}
+{% block title %}AI Smart Collage — AI SmartGallery{% endblock %}
+
+{% block extra_head %}
+<style>
+    .collage-layout {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 1.5rem;
+        align-items: start;
+    }
+
+    /* ── Left: selector panel ── */
+    .panel {
+        background: var(--glass);
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        overflow: hidden;
+    }
+
+    .panel-header {
+        padding: 1rem 1.25rem;
+        border-bottom: 1px solid var(--border);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.5rem;
+        font-family: 'Syne', sans-serif;
+        font-weight: 700;
+        font-size: 0.9rem;
+    }
+
+    .selected-count {
+        font-size: 0.78rem;
+        color: var(--accent);
+        font-family: 'DM Sans', sans-serif;
+        font-weight: 600;
+        background: rgba(108,99,255,0.12);
+        border: 1px solid rgba(108,99,255,0.25);
+        padding: 0.2rem 0.6rem;
+        border-radius: 999px;
+        transition: all 0.2s;
+    }
+
+    .panel-body { padding: 1.25rem; }
+
+    /* Instructions */
+    .instructions {
+        display: flex;
+        gap: 0.75rem;
+        margin-bottom: 1.25rem;
+        flex-wrap: wrap;
+    }
+
+    .instruction-step {
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+        font-size: 0.75rem;
+        color: var(--text-muted);
+    }
+
+    .step-num {
+        width: 18px; height: 18px;
+        border-radius: 50%;
+        background: rgba(108,99,255,0.2);
+        border: 1px solid rgba(108,99,255,0.3);
+        color: var(--accent);
+        font-size: 0.65rem;
+        font-weight: 700;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+    }
+
+    /* Photo selection grid */
+    .selection-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));
+        gap: 0.5rem;
+        max-height: 420px;
+        overflow-y: auto;
+        padding: 0.25rem;
+    }
+
+    .select-thumb {
+        position: relative;
+        aspect-ratio: 1;
+        border-radius: 8px;
+        overflow: hidden;
+        border: 2px solid transparent;
+        cursor: pointer;
+        transition: all 0.18s;
+        background: var(--bg-mid);
+    }
+
+    .select-thumb:hover {
+        border-color: rgba(108,99,255,0.5);
+        transform: scale(1.03);
+    }
+
+    .select-thumb.selected {
+        border-color: var(--accent);
+        box-shadow: 0 0 14px rgba(108,99,255,0.4);
+    }
+
+    .select-thumb img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        display: block;
+        pointer-events: none;
+    }
+
+    /* Checkbox overlay */
+    .thumb-check {
+        position: absolute;
+        top: 4px; right: 4px;
+        width: 20px; height: 20px;
+        border-radius: 50%;
+        background: rgba(0,0,0,0.5);
+        border: 2px solid rgba(255,255,255,0.4);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.65rem;
+        color: white;
+        transition: all 0.15s;
+        pointer-events: none;
+    }
+
+    .select-thumb.selected .thumb-check {
+        background: var(--accent);
+        border-color: var(--accent);
+    }
+
+    /* Order badge */
+    .thumb-order {
+        position: absolute;
+        bottom: 4px; left: 4px;
+        min-width: 18px; height: 18px;
+        border-radius: 999px;
+        background: rgba(0,0,0,0.7);
+        color: white;
+        font-size: 0.6rem;
+        font-weight: 700;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        padding: 0 4px;
+        pointer-events: none;
+    }
+
+    .select-thumb.selected .thumb-order { display: flex; }
+
+    /* Face badge */
+    .thumb-face {
+        position: absolute;
+        top: 4px; left: 4px;
+        background: rgba(0,0,0,0.6);
+        border-radius: 999px;
+        padding: 0.1rem 0.35rem;
+        font-size: 0.6rem;
+        color: #a89aff;
+        display: flex;
+        align-items: center;
+        gap: 2px;
+        pointer-events: none;
+    }
+
+    /* Selection strip */
+    .selection-strip {
+        margin-top: 1rem;
+        min-height: 52px;
+        display: flex;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+        align-items: center;
+        padding: 0.6rem;
+        background: rgba(108,99,255,0.04);
+        border: 1px dashed rgba(108,99,255,0.2);
+        border-radius: 10px;
+    }
+
+    .strip-placeholder {
+        font-size: 0.78rem;
+        color: var(--text-muted);
+        font-style: italic;
+    }
+
+    .strip-thumb {
+        width: 38px; height: 38px;
+        border-radius: 6px;
+        overflow: hidden;
+        border: 2px solid var(--accent);
+        flex-shrink: 0;
+        position: relative;
+        cursor: pointer;
+    }
+
+    .strip-thumb img {
+        width: 100%; height: 100%;
+        object-fit: cover;
+    }
+
+    .strip-thumb .strip-remove {
+        position: absolute;
+        inset: 0;
+        background: rgba(255,79,109,0.7);
+        display: none;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.7rem;
+        color: white;
+    }
+
+    .strip-thumb:hover .strip-remove { display: flex; }
+
+    /* Generate button */
+    .generate-section {
+        margin-top: 1.25rem;
+        display: flex;
+        gap: 0.75rem;
+        align-items: center;
+        flex-wrap: wrap;
+    }
+
+    /* AI info */
+    .ai-info-row {
+        display: flex;
+        gap: 0.6rem;
+        margin-top: 1rem;
+        flex-wrap: wrap;
+    }
+
+    .ai-chip {
+        display: flex;
+        align-items: center;
+        gap: 0.3rem;
+        font-size: 0.72rem;
+        color: var(--text-muted);
+        background: var(--glass);
+        border: 1px solid var(--border);
+        padding: 0.22rem 0.55rem;
+        border-radius: 999px;
+    }
+
+    /* ── Right: result panel ── */
+    .result-panel {
+        position: sticky;
+        top: calc(var(--nav-height) + 1.5rem);
+    }
+
+    .result-img-wrap {
+        width: 100%;
+        border-radius: 12px;
+        overflow: hidden;
+        background: var(--bg-mid);
+        min-height: 300px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        position: relative;
+    }
+
+    .result-img-wrap img {
+        width: 100%;
+        display: block;
+        border-radius: 12px;
+    }
+
+    .result-placeholder {
+        text-align: center;
+        padding: 4rem 2rem;
+        color: var(--text-muted);
+    }
+
+    .result-placeholder-icon {
+        font-size: 3.5rem;
+        margin-bottom: 0.75rem;
+        opacity: 0.6;
+    }
+
+    /* Processing */
+    .processing-state {
+        text-align: center;
+        padding: 4rem 2rem;
+    }
+
+    .spinner {
+        width: 44px; height: 44px;
+        border: 3px solid var(--border);
+        border-top-color: var(--accent);
+        border-radius: 50%;
+        animation: spin 0.8s linear infinite;
+        margin: 0 auto 1rem;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .result-actions {
+        display: flex;
+        gap: 0.75rem;
+        margin-top: 1rem;
+        flex-wrap: wrap;
+    }
+
+    /* Error box */
+    .error-box {
+        background: rgba(255,79,109,0.08);
+        border: 1px solid rgba(255,79,109,0.25);
+        border-radius: 10px;
+        padding: 0.9rem 1.1rem;
+        font-size: 0.85rem;
+        color: #fca5a5;
+        margin-bottom: 1rem;
+        display: flex;
+        align-items: center;
+        gap: 0.6rem;
+    }
+
+    /* Layout preview chips */
+    .layout-hint {
+        display: flex;
+        gap: 0.5rem;
+        margin-top: 0.75rem;
+        flex-wrap: wrap;
+    }
+
+    .layout-chip {
+        font-size: 0.72rem;
+        color: var(--text-muted);
+        background: var(--glass);
+        border: 1px solid var(--border);
+        padding: 0.2rem 0.55rem;
+        border-radius: 6px;
+        transition: all 0.2s;
+    }
+
+    .layout-chip.active {
+        color: var(--accent-2);
+        border-color: rgba(0,212,255,0.3);
+        background: rgba(0,212,255,0.06);
+    }
+
+    @media (max-width: 900px) {
+        .collage-layout { grid-template-columns: 1fr; }
+        .result-panel { position: static; }
+    }
+
+    @media (max-width: 680px) {
+        .selection-grid { grid-template-columns: repeat(auto-fill, minmax(72px, 1fr)); }
+        .instructions { display: none; }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<div style="margin-bottom: 2rem;">
+    <h1 class="page-heading">AI Smart <span>Collage</span></h1>
+    <p class="page-subheading">Select photos — AI decides the layout, sizes each photo by importance, and crops around faces automatically.</p>
+</div>
+
+{% if error %}
+<div class="error-box">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+    {{ error }}
+</div>
+{% endif %}
+
+<div class="collage-layout">
+
+    <!-- ── LEFT: Photo selector ── -->
+    <div class="panel">
+        <div class="panel-header">
+            <span>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:0.3rem;"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+                Select Photos
+            </span>
+            <span class="selected-count" id="sel-count">0 selected</span>
+        </div>
+
+        <div class="panel-body">
+
+            <!-- Steps -->
+            <div class="instructions">
+                <div class="instruction-step">
+                    <div class="step-num">1</div>
+                    Click photos to select (2–12)
+                </div>
+                <div class="instruction-step">
+                    <div class="step-num">2</div>
+                    AI scores by face importance
+                </div>
+                <div class="instruction-step">
+                    <div class="step-num">3</div>
+                    Click Generate Collage
+                </div>
+            </div>
+
+            <!-- Photo grid -->
+            <div class="selection-grid" id="selection-grid">
+                {% for photo in gallery_photos %}
+                <div
+                    class="select-thumb {% if photo.id in selected_ids %}selected{% endif %}"
+                    id="st-{{ photo.id }}"
+                    onclick="toggleSelect({{ photo.id }}, '{{ photo.image.url }}')"
+                    data-url="{{ photo.image.url }}"
+                    data-faces="{{ photo.faces.count }}"
+                >
+                    <img src="{{ photo.image.url }}" alt="Photo {{ photo.id }}" loading="lazy">
+                    <div class="thumb-check">✓</div>
+                    <div class="thumb-order" id="order-{{ photo.id }}"></div>
+                    {% if photo.faces.count > 0 %}
+                    <div class="thumb-face">
+                        <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+                        {{ photo.faces.count }}
+                    </div>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+
+            <!-- Selection strip -->
+            <div class="selection-strip" id="selection-strip">
+                <span class="strip-placeholder" id="strip-placeholder">Selected photos appear here…</span>
+            </div>
+
+            <!-- Layout hint -->
+            <div class="layout-hint" id="layout-hint">
+                <span class="layout-chip" id="lc-2">2: Featured + Side</span>
+                <span class="layout-chip" id="lc-3">3: Hero + 2</span>
+                <span class="layout-chip" id="lc-4">4: Hero + 3</span>
+                <span class="layout-chip" id="lc-5">5–6: Hero + Grid</span>
+                <span class="layout-chip" id="lc-7">7+: Equal Grid</span>
+            </div>
+
+            <!-- Generate -->
+            <form method="POST" id="collage-form">
+                {% csrf_token %}
+                <div id="hidden-ids"></div>
+
+                <div class="generate-section">
+                    <button
+                        type="submit"
+                        class="btn btn-accent"
+                        id="gen-btn"
+                        disabled
+                        style="flex:1; justify-content:center;"
+                    >
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+                        <span id="gen-label">Select photos first</span>
+                    </button>
+
+                    <label style="display:flex; align-items:center; gap:0.4rem; font-size:0.8rem; color:var(--text-muted); cursor:pointer; white-space:nowrap;">
+                        <input type="checkbox" name="save_to_gallery" style="accent-color:var(--accent);">
+                        Save to Gallery
+                    </label>
+                </div>
+            </form>
+
+            <!-- AI info chips -->
+            <div class="ai-info-row">
+                <div class="ai-chip">
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/></svg>
+                    Face-aware cropping
+                </div>
+                <div class="ai-chip">
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+                    Visual weight scoring
+                </div>
+                <div class="ai-chip">
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+                    Auto layout engine
+                </div>
+                <div class="ai-chip">
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="8 17 12 21 16 17"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.88 18.09A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.29"/></svg>
+                    JPEG · 400px cells
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── RIGHT: Result panel ── -->
+    <div class="panel result-panel">
+        <div class="panel-header">
+            <span>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+                Generated Collage
+            </span>
+            {% if result_url %}
+            <span class="badge badge-green">Ready ✓</span>
+            {% endif %}
+        </div>
+
+        <div class="panel-body">
+            <div class="result-img-wrap" id="result-wrap">
+                {% if result_url %}
+                <img src="{{ result_url }}" alt="AI Generated Collage" id="result-img">
+                {% else %}
+                <div class="result-placeholder">
+                    <div class="result-placeholder-icon">🖼️</div>
+                    <div style="font-size:0.9rem; font-weight:600; color:var(--text-bright); margin-bottom:0.4rem;">
+                        Your collage appears here
+                    </div>
+                    <div style="font-size:0.78rem;">
+                        Select 2–12 photos and click Generate
+                    </div>
+                    <div style="font-size:0.72rem; margin-top:0.5rem; color:rgba(240,244,255,0.3);">
+                        AI weights photos by face count · Smart crops around faces
+                    </div>
+                </div>
+                {% endif %}
+
+                <!-- Processing overlay — shown via JS -->
+                <div class="processing-state" id="processing-overlay" style="display:none; width:100%;">
+                    <div class="spinner"></div>
+                    <div style="font-size:0.9rem; font-weight:600; color:var(--text-bright); margin-bottom:0.3rem;">
+                        Generating collage…
+                    </div>
+                    <div style="font-size:0.78rem; color:var(--text-muted);" id="proc-detail">
+                        Scoring photos by visual weight…
+                    </div>
+                </div>
+            </div>
+
+            {% if result_url %}
+            <div class="result-actions">
+                <a href="{{ result_url }}" download="smartgallery_collage.jpg" class="btn btn-accent">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                    Download Collage
+                </a>
+                <a href="{% url 'collage' %}" class="btn btn-ghost">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+                    New Collage
+                </a>
+            </div>
+
+            <!-- Collage info -->
+            <div style="margin-top:1rem; padding:0.75rem 1rem; background:rgba(0,229,160,0.06); border:1px solid rgba(0,229,160,0.15); border-radius:10px; font-size:0.78rem; color:var(--text-muted); line-height:1.6;">
+                <strong style="color:#6ee7b7;">AI decisions made:</strong><br>
+                Photos weighted by face count and face area ratio · Most important photo placed in featured position ·
+                All crops centered on face centroids · Layout computed automatically from photo count.
+            </div>
+            {% endif %}
+
+        </div>
+    </div>
+
+</div>
+
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    // ── State ──
+    const selectedMap = new Map(); // id → url
+    let orderCounter = 0;
+
+    // Pre-select from server (after POST)
+    {% for sid in selected_ids %}
+    (function() {
+        const el = document.getElementById('st-{{ forloop.counter }}');
+    })();
+    {% endfor %}
+
+    function toggleSelect(id, url) {
+        const el = document.getElementById(`st-${id}`);
+        if (selectedMap.has(id)) {
+            // Deselect
+            selectedMap.delete(id);
+            el.classList.remove('selected');
+            document.getElementById(`order-${id}`).textContent = '';
+            rebuildOrders();
+        } else {
+            if (selectedMap.size >= 12) {
+                showToast('Maximum 12 photos per collage', 'error');
+                return;
+            }
+            selectedMap.set(id, url);
+            el.classList.add('selected');
+        }
+        updateUI();
+    }
+
+    function rebuildOrders() {
+        let i = 1;
+        selectedMap.forEach((url, id) => {
+            const o = document.getElementById(`order-${id}`);
+            if (o) o.textContent = i++;
+        });
+    }
+
+    function updateUI() {
+        const count = selectedMap.size;
+
+        // Count badge
+        document.getElementById('sel-count').textContent =
+            count === 0 ? '0 selected' : `${count} selected`;
+
+        // Order badges
+        rebuildOrders();
+
+        // Strip
+        const strip = document.getElementById('selection-strip');
+        const placeholder = document.getElementById('strip-placeholder');
+        strip.innerHTML = '';
+
+        if (count === 0) {
+            placeholder.style.display = 'inline';
+            strip.appendChild(placeholder);
+        } else {
+            selectedMap.forEach((url, id) => {
+                const thumb = document.createElement('div');
+                thumb.className = 'strip-thumb';
+                thumb.title = `Photo ${id} — click to remove`;
+                thumb.innerHTML = `
+                    <img src="${url}" alt="">
+                    <div class="strip-remove">✕</div>
+                `;
+                thumb.onclick = () => toggleSelect(id, url);
+                strip.appendChild(thumb);
+            });
+        }
+
+        // Layout hint
+        updateLayoutHint(count);
+
+        // Hidden inputs
+        const container = document.getElementById('hidden-ids');
+        container.innerHTML = '';
+        selectedMap.forEach((url, id) => {
+            const inp = document.createElement('input');
+            inp.type = 'hidden';
+            inp.name = 'photo_ids';
+            inp.value = id;
+            container.appendChild(inp);
+        });
+
+        // Generate button
+        const btn = document.getElementById('gen-btn');
+        const lbl = document.getElementById('gen-label');
+        if (count < 2) {
+            btn.disabled = true;
+            lbl.textContent = count === 0 ? 'Select photos first' : 'Select at least 2';
+        } else {
+            btn.disabled = false;
+            lbl.textContent = `Generate Collage (${count} photos)`;
+        }
+    }
+
+    function updateLayoutHint(count) {
+        const chips = {2:'lc-2', 3:'lc-3', 4:'lc-4', 5:'lc-5', 7:'lc-7'};
+        Object.values(chips).forEach(id => {
+            document.getElementById(id)?.classList.remove('active');
+        });
+
+        if      (count === 2)          document.getElementById('lc-2')?.classList.add('active');
+        else if (count === 3)          document.getElementById('lc-3')?.classList.add('active');
+        else if (count === 4)          document.getElementById('lc-4')?.classList.add('active');
+        else if (count >= 5 && count <= 6) document.getElementById('lc-5')?.classList.add('active');
+        else if (count >= 7)           document.getElementById('lc-7')?.classList.add('active');
+    }
+
+    // Processing feedback messages
+    const procMessages = [
+        'Scoring photos by visual weight…',
+        'Computing optimal layout…',
+        'Cropping photos around faces…',
+        'Composing final collage…',
+        'Almost done…',
+    ];
+
+    document.getElementById('collage-form').addEventListener('submit', function(e) {
+        if (selectedMap.size < 2) { e.preventDefault(); return; }
+
+        // Show processing overlay
+        const wrap = document.getElementById('result-wrap');
+        document.querySelector('.result-placeholder')?.remove();
+        document.getElementById('result-img')?.remove();
+        document.getElementById('processing-overlay').style.display = 'flex';
+        document.getElementById('processing-overlay').style.flexDirection = 'column';
+        document.getElementById('processing-overlay').style.alignItems = 'center';
+
+        document.getElementById('gen-btn').disabled = true;
+        document.getElementById('gen-label').textContent = 'Generating…';
+
+        // Cycle through processing messages
+        let msgIdx = 0;
+        const msgEl = document.getElementById('proc-detail');
+        const interval = setInterval(() => {
+            msgIdx = (msgIdx + 1) % procMessages.length;
+            msgEl.textContent = procMessages[msgIdx];
+        }, 1800);
+    });
+
+    // Init UI
+    updateUI();
+</script>
+{% endblock %}

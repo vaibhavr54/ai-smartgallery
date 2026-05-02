@@ -1,0 +1,615 @@
+{% extends "gallery/base.html" %}
+{% block title %}Enhance Photo — AI SmartGallery{% endblock %}
+
+{% block extra_head %}
+<style>
+    .enhance-layout {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 1.5rem;
+        align-items: start;
+    }
+
+    /* ── Left panel — input ── */
+    .panel {
+        background: var(--glass);
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        overflow: hidden;
+    }
+
+    .panel-header {
+        padding: 1rem 1.25rem;
+        border-bottom: 1px solid var(--border);
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-family: 'Syne', sans-serif;
+        font-weight: 700;
+        font-size: 0.9rem;
+    }
+
+    .panel-body { padding: 1.25rem; }
+
+    /* Tabs */
+    .input-tabs {
+        display: flex;
+        gap: 0.5rem;
+        margin-bottom: 1.25rem;
+    }
+
+    .input-tab {
+        flex: 1;
+        padding: 0.5rem;
+        border-radius: 8px;
+        border: 1px solid var(--border);
+        background: var(--glass);
+        color: var(--text-muted);
+        font-family: 'DM Sans', sans-serif;
+        font-size: 0.82rem;
+        font-weight: 500;
+        cursor: pointer;
+        text-align: center;
+        transition: all 0.2s;
+    }
+
+    .input-tab.active {
+        background: rgba(108,99,255,0.15);
+        border-color: var(--accent);
+        color: var(--text-bright);
+    }
+
+    /* Drop zone */
+    .drop-zone {
+        border: 2px dashed rgba(108,99,255,0.3);
+        border-radius: 12px;
+        padding: 2rem;
+        text-align: center;
+        cursor: pointer;
+        transition: all 0.2s;
+        position: relative;
+        background: rgba(108,99,255,0.03);
+    }
+
+    .drop-zone:hover, .drop-zone.dragover {
+        border-color: var(--accent);
+        background: rgba(108,99,255,0.08);
+    }
+
+    .drop-zone input[type="file"] {
+        position: absolute;
+        inset: 0;
+        opacity: 0;
+        cursor: pointer;
+    }
+
+    .drop-preview {
+        width: 100%;
+        border-radius: 10px;
+        margin-top: 1rem;
+        display: none;
+        object-fit: contain;
+        max-height: 300px;
+    }
+
+    /* Gallery picker */
+    .gallery-picker {
+        display: none;
+    }
+
+    .gallery-picker.active { display: block; }
+
+    .picker-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+        gap: 0.5rem;
+        max-height: 300px;
+        overflow-y: auto;
+        padding: 0.25rem;
+    }
+
+    .picker-thumb {
+        aspect-ratio: 1;
+        border-radius: 8px;
+        overflow: hidden;
+        border: 2px solid transparent;
+        cursor: pointer;
+        transition: all 0.2s;
+        position: relative;
+    }
+
+    .picker-thumb:hover { border-color: var(--accent); }
+    .picker-thumb.selected {
+        border-color: var(--accent);
+        box-shadow: 0 0 12px var(--accent-glow);
+    }
+
+    .picker-thumb img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
+
+    .picker-thumb .check {
+        position: absolute;
+        top: 4px; right: 4px;
+        width: 18px; height: 18px;
+        border-radius: 50%;
+        background: var(--accent);
+        display: none;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.6rem;
+        color: white;
+    }
+
+    .picker-thumb.selected .check { display: flex; }
+
+    /* Selected preview */
+    .selected-preview {
+        margin-top: 1rem;
+        border-radius: 10px;
+        overflow: hidden;
+        display: none;
+    }
+
+    .selected-preview img {
+        width: 100%;
+        max-height: 220px;
+        object-fit: contain;
+        background: var(--bg-mid);
+        border-radius: 10px;
+    }
+
+    /* ── Right panel — output ── */
+    .output-panel {
+        position: sticky;
+        top: calc(var(--nav-height) + 1.5rem);
+    }
+
+    .result-img-wrap {
+        width: 100%;
+        border-radius: 10px;
+        overflow: hidden;
+        background: var(--bg-mid);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 280px;
+        position: relative;
+    }
+
+    .result-img-wrap img {
+        width: 100%;
+        object-fit: contain;
+        border-radius: 10px;
+        display: block;
+    }
+
+    .result-placeholder {
+        text-align: center;
+        color: var(--text-muted);
+        padding: 3rem 1.5rem;
+    }
+
+    .result-placeholder-icon { font-size: 3rem; margin-bottom: 0.75rem; }
+
+    /* Processing overlay */
+    .processing-overlay {
+        position: absolute;
+        inset: 0;
+        background: rgba(5,8,16,0.85);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 1rem;
+        border-radius: 10px;
+    }
+
+    .spinner {
+        width: 40px; height: 40px;
+        border: 3px solid var(--border);
+        border-top-color: var(--accent);
+        border-radius: 50%;
+        animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .processing-label {
+        font-size: 0.85rem;
+        color: var(--text-muted);
+        text-align: center;
+    }
+
+    /* Compare slider */
+    .compare-wrap {
+        position: relative;
+        overflow: hidden;
+        border-radius: 10px;
+        cursor: col-resize;
+        user-select: none;
+    }
+
+    .compare-after {
+        width: 100%;
+        display: block;
+    }
+
+    .compare-before-wrap {
+        position: absolute;
+        top: 0; left: 0; bottom: 0;
+        overflow: hidden;
+        width: 50%;
+        transition: none;
+    }
+
+    .compare-before {
+        width: 100%;
+        display: block;
+        position: absolute;
+        top: 0; left: 0;
+    }
+
+    .compare-handle {
+        position: absolute;
+        top: 0; bottom: 0;
+        left: 50%;
+        width: 3px;
+        background: white;
+        cursor: col-resize;
+        transform: translateX(-50%);
+    }
+
+    .compare-handle::before {
+        content: '◀ ▶';
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        background: white;
+        color: #000;
+        font-size: 0.65rem;
+        padding: 0.3rem 0.4rem;
+        border-radius: 999px;
+        white-space: nowrap;
+        font-weight: 700;
+    }
+
+    .compare-label {
+        position: absolute;
+        top: 8px;
+        font-size: 0.7rem;
+        font-weight: 700;
+        padding: 0.2rem 0.5rem;
+        border-radius: 4px;
+        pointer-events: none;
+    }
+
+    .label-before { left: 8px; background: rgba(0,0,0,0.6); color: #fff; }
+    .label-after  { right: 8px; background: rgba(108,99,255,0.8); color: #fff; }
+
+    /* Result actions */
+    .result-actions {
+        display: flex;
+        gap: 0.75rem;
+        margin-top: 1rem;
+        flex-wrap: wrap;
+    }
+
+    /* Error box */
+    .error-box {
+        background: rgba(255,79,109,0.08);
+        border: 1px solid rgba(255,79,109,0.25);
+        border-radius: 10px;
+        padding: 0.9rem 1.1rem;
+        font-size: 0.85rem;
+        color: #fca5a5;
+        margin-bottom: 1rem;
+    }
+
+    /* Info strip */
+    .info-strip {
+        display: flex;
+        gap: 0.75rem;
+        margin-top: 1.25rem;
+        flex-wrap: wrap;
+    }
+
+    .info-chip {
+        display: flex;
+        align-items: center;
+        gap: 0.35rem;
+        font-size: 0.75rem;
+        color: var(--text-muted);
+        background: var(--glass);
+        border: 1px solid var(--border);
+        padding: 0.25rem 0.6rem;
+        border-radius: 999px;
+    }
+
+    @media (max-width: 900px) {
+        .enhance-layout {
+            grid-template-columns: 1fr;
+        }
+        .output-panel { position: static; }
+    }
+
+    @media (max-width: 680px) {
+        .picker-grid { grid-template-columns: repeat(auto-fill, minmax(65px, 1fr)); }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<div style="margin-bottom: 2rem;">
+    <h1 class="page-heading">Image <span>Enhancer</span></h1>
+    <p class="page-subheading">AI-powered photo restoration using Real-ESRGAN — sharper, cleaner, higher resolution.</p>
+</div>
+
+{% if error %}
+<div class="error-box">⚠ {{ error }}</div>
+{% endif %}
+
+<div class="enhance-layout">
+
+    <!-- ── LEFT: Input panel ── -->
+    <div class="panel">
+        <div class="panel-header">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            Select Photo to Enhance
+        </div>
+        <div class="panel-body">
+
+            <!-- Tabs -->
+            <div class="input-tabs">
+                <div class="input-tab active" id="tab-upload" onclick="switchTab('upload')">Upload New</div>
+                <div class="input-tab" id="tab-gallery" onclick="switchTab('gallery')">From Gallery</div>
+            </div>
+
+            <!-- Upload tab -->
+            <div id="section-upload">
+                <form method="POST" enctype="multipart/form-data" id="upload-form">
+                    {% csrf_token %}
+                    <div class="drop-zone" id="drop-zone">
+                        <input type="file" name="upload" accept="image/*" id="upload-input">
+                        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="rgba(108,99,255,0.6)" stroke-width="1.5" style="margin-bottom:0.75rem;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                        <div style="font-size:0.9rem; font-weight:600; color:var(--text-bright); margin-bottom:0.3rem;">Drop photo here</div>
+                        <div style="font-size:0.78rem; color:var(--text-muted);">or click to browse · JPG, PNG</div>
+                        <img id="drop-preview" class="drop-preview" src="" alt="Preview">
+                    </div>
+
+                    <button type="submit" class="btn btn-accent" style="width:100%; justify-content:center; margin-top:1rem;" id="upload-btn" disabled>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+                        Enhance Photo
+                    </button>
+                </form>
+            </div>
+
+            <!-- Gallery tab -->
+            <div id="section-gallery" class="gallery-picker">
+                <div class="picker-grid">
+                    {% for gp in gallery_photos %}
+                    <div
+                        class="picker-thumb"
+                        onclick="selectGalleryPhoto({{ gp.id }}, '{{ gp.image.url }}')"
+                        id="thumb-{{ gp.id }}"
+                    >
+                        <img src="{{ gp.image.url }}" alt="Photo {{ gp.id }}" loading="lazy">
+                        <div class="check">✓</div>
+                    </div>
+                    {% endfor %}
+                </div>
+
+                <div class="selected-preview" id="selected-preview">
+                    <img id="selected-img" src="" alt="Selected">
+                </div>
+
+                <form method="POST" id="gallery-form" style="margin-top:1rem;">
+                    {% csrf_token %}
+                    <input type="hidden" name="photo_id" id="selected-photo-id" value="">
+                    <button type="submit" class="btn btn-accent" style="width:100%; justify-content:center;" id="gallery-btn" disabled>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+                        Enhance Selected Photo
+                    </button>
+                </form>
+            </div>
+
+            <!-- Info chips -->
+            <div class="info-strip">
+                <div class="info-chip">
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                    ~30–60s on CPU
+                </div>
+                <div class="info-chip">
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/></svg>
+                    2× upscale
+                </div>
+                <div class="info-chip">
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+                    Real-ESRGAN x4plus
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── RIGHT: Output panel ── -->
+    <div class="panel output-panel">
+        <div class="panel-header">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+            Result
+            {% if enhanced_url %}
+            <span class="badge badge-green" style="margin-left:auto;">Enhanced ✓</span>
+            {% endif %}
+        </div>
+        <div class="panel-body">
+
+            <div class="result-img-wrap" id="result-wrap">
+                {% if enhanced_url and original_url %}
+                <!-- Before/After compare slider -->
+                <div class="compare-wrap" id="compare-wrap">
+                    <img class="compare-after" src="{{ enhanced_url }}" alt="Enhanced">
+                    <div class="compare-before-wrap" id="before-wrap">
+                        <img class="compare-before" src="{{ original_url }}" alt="Original" id="before-img">
+                    </div>
+                    <div class="compare-handle" id="compare-handle"></div>
+                    <span class="compare-label label-before">Original</span>
+                    <span class="compare-label label-after">Enhanced</span>
+                </div>
+
+                {% elif enhanced_url %}
+                <img src="{{ enhanced_url }}" alt="Enhanced photo" style="width:100%; border-radius:10px;">
+
+                {% else %}
+                <div class="result-placeholder">
+                    <div class="result-placeholder-icon">✨</div>
+                    <div style="font-size:0.9rem; font-weight:600; color:var(--text-bright); margin-bottom:0.3rem;">Enhanced photo appears here</div>
+                    <div style="font-size:0.78rem;">Select a photo and click Enhance</div>
+                </div>
+                {% endif %}
+            </div>
+
+            {% if enhanced_url %}
+            <div class="result-actions">
+                <a href="{{ enhanced_url }}" download class="btn btn-accent">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                    Download
+                </a>
+                <button class="btn btn-ghost" onclick="saveToGallery('{{ enhanced_url }}')">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+                    Save to Gallery
+                </button>
+            </div>
+            {% endif %}
+
+        </div>
+    </div>
+
+</div>
+
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    // ── Tab switching ──
+    function switchTab(tab) {
+        document.getElementById('tab-upload').classList.toggle('active', tab === 'upload');
+        document.getElementById('tab-gallery').classList.toggle('active', tab === 'gallery');
+        document.getElementById('section-upload').style.display  = tab === 'upload'  ? 'block' : 'none';
+        document.getElementById('section-gallery').classList.toggle('active', tab === 'gallery');
+    }
+
+    // ── Upload tab: file preview ──
+    const uploadInput = document.getElementById('upload-input');
+    const dropPreview = document.getElementById('drop-preview');
+    const uploadBtn   = document.getElementById('upload-btn');
+    const dropZone    = document.getElementById('drop-zone');
+
+    uploadInput.addEventListener('change', () => {
+        const file = uploadInput.files[0];
+        if (file) {
+            dropPreview.src = URL.createObjectURL(file);
+            dropPreview.style.display = 'block';
+            uploadBtn.disabled = false;
+            uploadBtn.textContent = 'Enhance Photo';
+        }
+    });
+
+    dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
+    dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+    dropZone.addEventListener('drop', e => {
+        e.preventDefault();
+        dropZone.classList.remove('dragover');
+        const file = e.dataTransfer.files[0];
+        if (file && file.type.startsWith('image/')) {
+            const dt = new DataTransfer();
+            dt.items.add(file);
+            uploadInput.files = dt.files;
+            uploadInput.dispatchEvent(new Event('change'));
+        }
+    });
+
+    // Show processing state on submit
+    document.getElementById('upload-form').addEventListener('submit', () => {
+        uploadBtn.disabled = true;
+        uploadBtn.innerHTML = '<div class="spinner" style="width:16px;height:16px;border-width:2px;"></div> Processing…';
+    });
+
+    document.getElementById('gallery-form').addEventListener('submit', () => {
+        const btn = document.getElementById('gallery-btn');
+        btn.disabled = true;
+        btn.innerHTML = '<div class="spinner" style="width:16px;height:16px;border-width:2px;"></div> Processing…';
+    });
+
+    // ── Gallery picker ──
+    let selectedPhotoId = null;
+
+    function selectGalleryPhoto(id, url) {
+        // Deselect previous
+        if (selectedPhotoId) {
+            document.getElementById(`thumb-${selectedPhotoId}`)?.classList.remove('selected');
+        }
+        selectedPhotoId = id;
+        document.getElementById(`thumb-${id}`).classList.add('selected');
+        document.getElementById('selected-photo-id').value = id;
+        document.getElementById('selected-img').src = url;
+        document.getElementById('selected-preview').style.display = 'block';
+        document.getElementById('gallery-btn').disabled = false;
+    }
+
+    // ── Before/After compare slider ──
+    const compareWrap  = document.getElementById('compare-wrap');
+    const beforeWrap   = document.getElementById('before-wrap');
+    const handle       = document.getElementById('compare-handle');
+
+    if (compareWrap) {
+        let dragging = false;
+
+        function setSlider(x) {
+            const rect = compareWrap.getBoundingClientRect();
+            let pct = ((x - rect.left) / rect.width) * 100;
+            pct = Math.max(2, Math.min(98, pct));
+            beforeWrap.style.width = pct + '%';
+            handle.style.left = pct + '%';
+        }
+
+        compareWrap.addEventListener('mousedown', e => { dragging = true; setSlider(e.clientX); });
+        window.addEventListener('mousemove', e => { if (dragging) setSlider(e.clientX); });
+        window.addEventListener('mouseup', () => dragging = false);
+
+        // Touch
+        compareWrap.addEventListener('touchstart', e => { dragging = true; setSlider(e.touches[0].clientX); });
+        window.addEventListener('touchmove', e => { if (dragging) setSlider(e.touches[0].clientX); });
+        window.addEventListener('touchend', () => dragging = false);
+    }
+
+    // ── Save to gallery ──
+    async function saveToGallery(enhancedUrl) {
+        try {
+            const res = await fetch('/enhance/save/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                    'X-CSRFToken': getCookie('csrftoken'),
+                },
+                body: `enhanced_path=${encodeURIComponent(enhancedUrl)}`,
+            });
+            const data = await res.json();
+            if (data.status === 'ok') {
+                showToast('Saved to gallery!', 'success');
+            } else {
+                showToast('Save failed: ' + (data.msg || 'unknown error'), 'error');
+            }
+        } catch(e) {
+            showToast('Network error', 'error');
+        }
+    }
+
+    function getCookie(name) {
+        const v = document.cookie.match('(^|;) ?' + name + '=([^;]*)(;|$)');
+        return v ? v[2] : null;
+    }
+</script>
+{% endblock %}

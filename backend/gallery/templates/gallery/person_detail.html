@@ -1,0 +1,279 @@
+{% extends "gallery/base.html" %}
+{% block title %}{{ person.label|default:"Unknown Person" }} — AI SmartGallery{% endblock %}
+
+{% block extra_head %}
+<style>
+    .detail-header {
+        display: flex;
+        align-items: center;
+        gap: 2rem;
+        margin-bottom: 2.5rem;
+        flex-wrap: wrap;
+    }
+
+    .detail-avatar {
+        width: 120px;
+        height: 120px;
+        border-radius: 50%;
+        object-fit: cover;
+        border: 3px solid var(--accent);
+        box-shadow: 0 0 30px rgba(108,99,255,0.3);
+        flex-shrink: 0;
+    }
+
+    .detail-avatar-placeholder {
+        width: 120px;
+        height: 120px;
+        border-radius: 50%;
+        background: var(--glass);
+        border: 3px solid var(--border);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 3rem;
+        flex-shrink: 0;
+    }
+
+    .detail-info { flex: 1; min-width: 0; }
+
+    .detail-name {
+        font-family: 'Syne', sans-serif;
+        font-size: clamp(1.4rem, 3vw, 2.2rem);
+        font-weight: 800;
+        color: var(--text-bright);
+        margin-bottom: 0.4rem;
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        flex-wrap: wrap;
+    }
+
+    .detail-meta {
+        display: flex;
+        gap: 1rem;
+        flex-wrap: wrap;
+        margin-bottom: 1rem;
+    }
+
+    .meta-badge {
+        display: flex;
+        align-items: center;
+        gap: 0.35rem;
+        font-size: 0.82rem;
+        color: var(--text-muted);
+        background: var(--glass);
+        border: 1px solid var(--border);
+        padding: 0.3rem 0.75rem;
+        border-radius: 999px;
+    }
+
+    .meta-badge strong { color: var(--text-bright); }
+
+    /* Inline rename form */
+    .rename-form {
+        display: flex;
+        gap: 0.5rem;
+        align-items: center;
+        margin-top: 0.75rem;
+        flex-wrap: wrap;
+    }
+
+    .rename-form input {
+        background: var(--glass);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 0.45rem 0.85rem;
+        color: var(--text-bright);
+        font-family: 'DM Sans', sans-serif;
+        font-size: 0.875rem;
+        outline: none;
+        width: 220px;
+        transition: border-color 0.2s;
+    }
+
+    .rename-form input:focus { border-color: var(--accent); }
+
+    /* Photo grid */
+    .photos-section-title {
+        font-family: 'Syne', sans-serif;
+        font-weight: 700;
+        font-size: 1rem;
+        color: var(--text-muted);
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        margin-bottom: 1rem;
+    }
+
+    .photo-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+        gap: 1rem;
+    }
+
+    .photo-thumb-wrap {
+        position: relative;
+        border-radius: 12px;
+        overflow: hidden;
+        border: 1px solid var(--border);
+        aspect-ratio: 4/3;
+        background: var(--bg-mid);
+        transition: transform 0.2s, border-color 0.2s;
+    }
+
+    .photo-thumb-wrap:hover {
+        transform: translateY(-3px);
+        border-color: rgba(108,99,255,0.4);
+    }
+
+    .photo-thumb-wrap img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        display: block;
+    }
+
+    /* Face box overlay on thumbnails */
+    .face-overlay {
+        position: absolute;
+        border: 2px solid var(--accent);
+        border-radius: 3px;
+        box-shadow: 0 0 8px rgba(108,99,255,0.5);
+        pointer-events: none;
+    }
+
+    @media (max-width: 680px) {
+        .detail-header { gap: 1.25rem; }
+        .detail-avatar, .detail-avatar-placeholder { width: 90px; height: 90px; }
+        .photo-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 0.6rem; }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<!-- Back link -->
+<a href="{% url 'people_view' %}" style="color:var(--text-muted); font-size:0.82rem; text-decoration:none; display:inline-flex; align-items:center; gap:0.3rem; margin-bottom:1.5rem;">
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+    Back to People
+</a>
+
+<!-- Header -->
+<div class="detail-header">
+    {% if best_face %}
+    <img
+        src="{% url 'face_crop' best_face.id %}"
+        alt="{{ person.label|default:'Person' }}"
+        class="detail-avatar"
+    >
+    {% else %}
+    <div class="detail-avatar-placeholder">👤</div>
+    {% endif %}
+
+    <div class="detail-info">
+        <div class="detail-name">
+            <span id="display-name">{{ person.label|default:"Unknown Person" }}</span>
+        </div>
+
+        <div class="detail-meta">
+            <div class="meta-badge">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+                <strong>{{ photos.count }}</strong>&nbsp;photos
+            </div>
+            <div class="meta-badge">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/></svg>
+                <strong>{{ face_count }}</strong>&nbsp;faces detected
+            </div>
+            <div class="meta-badge">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                ID #{{ person.id }}
+            </div>
+        </div>
+
+        <!-- Rename form -->
+        <form class="rename-form" method="POST">
+            {% csrf_token %}
+            <input
+                type="text"
+                name="label"
+                value="{{ person.label|default:'' }}"
+                placeholder="Enter name…"
+                maxlength="100"
+            >
+            <button type="submit" class="btn btn-accent" style="padding: 0.45rem 1rem; font-size:0.875rem;">
+                Save Name
+            </button>
+        </form>
+    </div>
+</div>
+
+<div class="divider"></div>
+
+<!-- Photos grid -->
+{% if photos %}
+<div class="photos-section-title">
+    Photos featuring this person ({{ photos.count }})
+</div>
+
+<div class="photo-grid" id="photo-grid">
+    {% for photo in photos %}
+    <div class="photo-thumb-wrap">
+        <img
+            src="{{ photo.image.url }}"
+            alt="Photo {{ photo.id }}"
+            loading="lazy"
+            class="grid-img"
+            data-photo-id="{{ photo.id }}"
+            data-natural-width="{{ photo.image.width|default:0 }}"
+            data-natural-height="{{ photo.image.height|default:0 }}"
+        >
+        <!-- Face boxes for this person in this photo -->
+        {% for face in photo.faces.all %}
+            {% if face.person_id == person.id %}
+            <div
+                class="face-overlay"
+                data-x="{{ face.x }}"
+                data-y="{{ face.y }}"
+                data-w="{{ face.width }}"
+                data-h="{{ face.height }}"
+                data-photo="{{ photo.id }}"
+            ></div>
+            {% endif %}
+        {% endfor %}
+    </div>
+    {% endfor %}
+</div>
+
+{% else %}
+<div style="text-align:center; padding:3rem; color:var(--text-muted);">
+    <p>No photos found for this person.</p>
+</div>
+{% endif %}
+
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+// Scale face bounding boxes to rendered image size
+function scaleFaceBoxes() {
+    document.querySelectorAll('.grid-img').forEach(img => {
+        const photoId = img.dataset.photoId;
+        const boxes = document.querySelectorAll(`.face-overlay[data-photo="${photoId}"]`);
+        if (!boxes.length) return;
+
+        const rect = img.getBoundingClientRect();
+        const scaleX = rect.width  / (img.naturalWidth  || rect.width);
+        const scaleY = rect.height / (img.naturalHeight || rect.height);
+
+        boxes.forEach(box => {
+            box.style.left   = (parseInt(box.dataset.x) * scaleX) + 'px';
+            box.style.top    = (parseInt(box.dataset.y) * scaleY) + 'px';
+            box.style.width  = (parseInt(box.dataset.w) * scaleX) + 'px';
+            box.style.height = (parseInt(box.dataset.h) * scaleY) + 'px';
+        });
+    });
+}
+
+window.addEventListener('load', scaleFaceBoxes);
+window.addEventListener('resize', scaleFaceBoxes);
+</script>
+{% endblock %}

@@ -6,6 +6,9 @@ from .forms import PhotoUploadForm
 from ai_engine.face_recognition.detector import detect_faces
 from ai_engine.face_recognition.matcher import find_matching_person, update_average_embedding
 from ai_engine.face_recognition.clusterer import run_dbscan_clustering
+from django.http import JsonResponse
+from django.views.decorators.http import require_POST
+import json
 
 
 # ---------- FACE QUALITY FILTERS ----------
@@ -111,6 +114,13 @@ def process_photo(photo):
             print(f"[pipeline] CLIP embedding saved for Photo {photo.id}")
         except Exception as e:
             print(f"[pipeline] CLIP embedding failed: {e}")
+        # --- Assign Event based on timestamp ---
+        try:
+            from ai_engine.event_grouping.grouper import assign_event_to_photo
+            assign_event_to_photo(photo)
+            print(f"[pipeline] Event assigned for Photo {photo.id}")
+        except Exception as e:
+            print(f"[pipeline] Event assignment failed: {e}")
 
     print(f"=== PIPELINE END | {saved} faces saved ===\n")
 
@@ -147,8 +157,17 @@ def gallery_view(request):
     })
 
 def rescan_view(request):
-    """Triggers a full DBSCAN recluster of all faces in the library."""
     result = run_dbscan_clustering()
+
+    # Also regroup all events
+    try:
+        from ai_engine.event_grouping.grouper import group_photos_into_events
+        event_result = group_photos_into_events()
+        result['events_created'] = event_result['events_created']
+        result['photos_grouped'] = event_result['photos_grouped']
+    except Exception as e:
+        result['event_error'] = str(e)
+
     return render(request, 'gallery/rescan.html', {'result': result})
 
 def people_view(request):
@@ -302,6 +321,329 @@ def batch_upload(request):
         })
 
     return render(request, 'gallery/batch_upload.html', {
+        'person_count': Person.objects.count(),
+        'event_count':  Event.objects.count(),
+    })
+
+def people_view(request):
+    persons = Person.objects.prefetch_related(
+        'face_set__photo',
+        'face_set__embedding'
+    ).all().order_by('-face_count')
+
+    people_data = []
+    for person in persons:
+        # Get best face crop — highest confidence face
+        best_face = person.face_set.filter(
+            confidence__isnull=False
+        ).order_by('-confidence').first()
+
+        if not best_face:
+            best_face = person.face_set.first()
+
+        # Get all photos this person appears in
+        photo_ids = person.face_set.values_list(
+            'photo_id', flat=True
+        ).distinct()
+        photo_count = photo_ids.count()
+
+        people_data.append({
+            'person':      person,
+            'best_face':   best_face,
+            'photo_count': photo_count,
+        })
+
+    return render(request, 'gallery/people.html', {
+        'people_data':  people_data,
+        'person_count': persons.count(),
+        'event_count':  Event.objects.count(),
+        'face_count':   Face.objects.count(),
+    })
+
+
+def person_detail(request, person_id):
+    from django.shortcuts import get_object_or_404
+    person = get_object_or_404(Person, id=person_id)
+
+    # Rename via POST
+    if request.method == 'POST':
+        new_label = request.POST.get('label', '').strip()
+        if new_label:
+            person.label = new_label
+            person.save()
+        return redirect('person_detail', person_id=person.id)
+
+    # All photos this person appears in
+    faces = person.face_set.select_related('photo').all()
+    photo_ids = faces.values_list('photo_id', flat=True).distinct()
+    photos = Photo.objects.filter(id__in=photo_ids).order_by('-uploaded_at')
+
+    # Best face for header
+    best_face = person.face_set.filter(
+        confidence__isnull=False
+    ).order_by('-confidence').first() or person.face_set.first()
+
+    return render(request, 'gallery/person_detail.html', {
+        'person':       person,
+        'photos':       photos,
+        'best_face':    best_face,
+        'face_count':   faces.count(),
+        'person_count': Person.objects.count(),
+        'event_count':  Event.objects.count(),
+    })
+
+
+@require_POST
+def rename_person(request, person_id):
+    from django.shortcuts import get_object_or_404
+    person = get_object_or_404(Person, id=person_id)
+    try:
+        data = json.loads(request.body)
+        new_label = data.get('label', '').strip()
+        if new_label:
+            person.label = new_label
+            person.save()
+            return JsonResponse({'status': 'ok', 'label': person.label})
+        return JsonResponse({'status': 'error', 'msg': 'Empty label'}, status=400)
+    except Exception as e:
+        return JsonResponse({'status': 'error', 'msg': str(e)}, status=500)
+    
+def face_crop(request, face_id):
+    """Returns a cropped face thumbnail as JPEG response."""
+    from django.shortcuts import get_object_or_404
+    from django.http import HttpResponse
+    from PIL import Image
+    import io
+
+    face = get_object_or_404(Face, id=face_id)
+    img = Image.open(face.photo.image.path).convert('RGB')
+
+    # Add padding around the face bbox
+    pad = 30
+    x1 = max(0, face.x - pad)
+    y1 = max(0, face.y - pad)
+    x2 = min(img.width,  face.x + face.width  + pad)
+    y2 = min(img.height, face.y + face.height + pad)
+
+    crop = img.crop((x1, y1, x2, y2))
+    crop = crop.resize((200, 200), Image.LANCZOS)
+
+    buf = io.BytesIO()
+    crop.save(buf, format='JPEG', quality=90)
+    buf.seek(0)
+    return HttpResponse(buf, content_type='image/jpeg')
+
+def events_view(request):
+    from ai_engine.event_grouping.grouper import group_photos_into_events
+
+    # Trigger regrouping if requested
+    if request.GET.get('regroup') == '1':
+        group_photos_into_events()
+        return redirect('events_view')
+
+    events = Event.objects.all().order_by('-start_time')
+    events_data = []
+
+    for event in events:
+        photos = Photo.objects.filter(event=event).order_by('uploaded_at')
+        events_data.append({
+            'event':       event,
+            'photos':      photos,
+            'cover':       photos.first(),
+            'photo_count': photos.count(),
+        })
+
+    return render(request, 'gallery/events.html', {
+        'events_data':  events_data,
+        'event_count':  events.count(),
+        'person_count': Person.objects.count(),
+    })
+
+def enhance_view(request):
+    enhanced_url = None
+    error        = None
+    original_url = None
+    photo        = None
+    processing   = False
+
+    # Enhance from gallery photo
+    photo_id = request.GET.get('photo_id') or request.POST.get('photo_id')
+    if photo_id:
+        try:
+            photo = Photo.objects.get(id=photo_id)
+            original_url = photo.image.url
+        except Photo.DoesNotExist:
+            error = "Photo not found."
+
+    if request.method == 'POST' and not error:
+        import uuid
+        from ai_engine.enhancer.enhancer import enhance_image
+
+        try:
+            processing = True
+
+            # Get input path
+            if photo:
+                input_path = photo.image.path
+                out_name   = f"enhanced_{photo.id}_{uuid.uuid4().hex[:6]}.jpg"
+            elif request.FILES.get('upload'):
+                import tempfile
+                f = request.FILES['upload']
+                with tempfile.NamedTemporaryFile(delete=False, suffix='.jpg') as tmp:
+                    for chunk in f.chunks():
+                        tmp.write(chunk)
+                    input_path = tmp.name
+                original_url = None
+                out_name = f"enhanced_upload_{uuid.uuid4().hex[:8]}.jpg"
+            else:
+                raise ValueError("No image provided.")
+
+            output_path  = enhance_image(input_path, out_name)
+            enhanced_url = '/' + output_path.replace('\\', '/')
+            processing   = False
+
+        except Exception as e:
+            error      = f"Enhancement failed: {e}"
+            processing = False
+
+    # Gallery photos for picker
+    gallery_photos = Photo.objects.all().order_by('-uploaded_at')[:40]
+
+    return render(request, 'gallery/enhance.html', {
+        'photo':          photo,
+        'original_url':   original_url,
+        'enhanced_url':   enhanced_url,
+        'error':          error,
+        'processing':     processing,
+        'gallery_photos': gallery_photos,
+        'person_count':   Person.objects.count(),
+        'event_count':    Event.objects.count(),
+    })
+
+
+def save_enhanced_to_gallery(request):
+    """Save an enhanced photo back to the gallery as a new Photo object."""
+    if request.method == 'POST':
+        import shutil, uuid
+        enhanced_path = request.POST.get('enhanced_path', '').lstrip('/')
+
+        if not enhanced_path or not os.path.exists(enhanced_path):
+            return JsonResponse({'status': 'error', 'msg': 'File not found'}, status=400)
+
+        # Copy into photos/ media folder
+        ext      = os.path.splitext(enhanced_path)[1]
+        new_name = f"photos/enhanced_{uuid.uuid4().hex[:10]}{ext}"
+        dest     = os.path.join('media', new_name)
+        os.makedirs(os.path.dirname(dest), exist_ok=True)
+        shutil.copy2(enhanced_path, dest)
+
+        # Create Photo object and run pipeline
+        new_photo = Photo.objects.create()
+        new_photo.image.name = new_name
+        new_photo.save()
+        process_photo(new_photo)
+
+        return JsonResponse({'status': 'ok', 'photo_id': new_photo.id})
+
+    return JsonResponse({'status': 'error'}, status=405)
+
+def collage_view(request):
+    result_url   = None
+    error        = None
+    selected_ids = []
+
+    if request.method == 'POST':
+        import uuid
+        from ai_engine.collage.collage_engine import build_collage
+
+        selected_ids = request.POST.getlist('photo_ids')
+
+        if len(selected_ids) < 2:
+            error = "Please select at least 2 photos."
+        elif len(selected_ids) > 12:
+            error = "Maximum 12 photos per collage."
+        else:
+            try:
+                photos_with_faces = []
+                for pid in selected_ids:
+                    photo = Photo.objects.get(id=pid)
+                    faces = list(photo.faces.all())
+                    photos_with_faces.append((photo, faces))
+
+                out_name   = f"collage_{uuid.uuid4().hex[:10]}.jpg"
+                output_path = build_collage(photos_with_faces, out_name)
+                result_url  = '/' + output_path.replace('\\', '/')
+
+                # Save to gallery if requested
+                if request.POST.get('save_to_gallery'):
+                    import shutil
+                    new_name = f"photos/collage_{uuid.uuid4().hex[:8]}.jpg"
+                    dest = os.path.join('media', new_name)
+                    os.makedirs(os.path.dirname(dest), exist_ok=True)
+                    shutil.copy2(output_path, dest)
+                    new_photo = Photo.objects.create()
+                    new_photo.image.name = new_name
+                    new_photo.save()
+
+            except Exception as e:
+                error = f"Collage generation failed: {e}"
+
+    gallery_photos = Photo.objects.all().order_by('-uploaded_at')
+
+    return render(request, 'gallery/collage.html', {
+        'gallery_photos': gallery_photos,
+        'result_url':     result_url,
+        'error':          error,
+        'selected_ids':   [int(i) for i in selected_ids],
+        'person_count':   Person.objects.count(),
+        'event_count':    Event.objects.count(),
+    })
+
+import os
+from django.http import JsonResponse
+from django.views.decorators.http import require_POST
+
+@require_POST
+def delete_photo(request, photo_id):
+    from django.shortcuts import get_object_or_404
+    photo = get_object_or_404(Photo, id=photo_id)
+    try:
+        if os.path.exists(photo.image.path):
+            os.remove(photo.image.path)
+    except Exception:
+        pass
+    photo.delete()
+    return JsonResponse({'status': 'ok'})
+
+
+@require_POST
+def bulk_delete_photos(request):
+    import json
+    try:
+        data = json.loads(request.body)
+        ids  = data.get('ids', [])
+    except Exception:
+        return JsonResponse({'status': 'error', 'msg': 'Invalid JSON'}, status=400)
+
+    deleted = 0
+    for pid in ids:
+        try:
+            photo = Photo.objects.get(id=pid)
+            try:
+                if os.path.exists(photo.image.path):
+                    os.remove(photo.image.path)
+            except Exception:
+                pass
+            photo.delete()
+            deleted += 1
+        except Photo.DoesNotExist:
+            pass
+
+    return JsonResponse({'status': 'ok', 'deleted': deleted})
+
+def stats_view(request):
+    return JsonResponse({
+        'face_count':   Face.objects.count(),
         'person_count': Person.objects.count(),
         'event_count':  Event.objects.count(),
     })
